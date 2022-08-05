@@ -5,10 +5,15 @@ pragma solidity ^0.8.9;
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+<<<<<<< Updated upstream
 contract PriceOracle is Ownable{
     mapping(uint80 => uint256) public prices;
     mapping(uint80 => string) public markets;
     uint80 marketCount;
+=======
+contract PriceOracle is Ownable {
+    mapping(address => uint256) public prices;
+>>>>>>> Stashed changes
 
     event SetPrice(uint80 poolId, uint256 prices);
     event AddMarket(uint80 poolId, string name);
@@ -36,8 +41,17 @@ contract PriceOracle is Ownable{
         return _prices;
     }
 
+<<<<<<< Updated upstream
     function setPriceOracle(uint80 poolId, uint256 price) external onlyOwner {
         prices[poolId] = price;
         emit SetPrice(poolId, price);
+=======
+    function setPriceOracle(address address_, uint256 price)
+        external
+        onlyOwner
+    {
+        prices[address_] = price;
+        emit SetPrice(address_, price);
+>>>>>>> Stashed changes
     }
 }
