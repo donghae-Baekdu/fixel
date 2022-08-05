@@ -1,5 +1,6 @@
 pragma solidity ^0.8.9;
 
+<<<<<<< HEAD
 import "./PositionController.sol";
 import "./LpToken.sol";
 import "./Factory.sol";
@@ -50,11 +51,19 @@ contract LpPool is LpToken {
         // TODO burn amount of token
 =======
 contract LpPool {
+=======
+import "./Position.sol";
+import "./LpToken.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+contract LpPool is LpToken {
+>>>>>>> 506a2d4 (Design Lp pool architecture)
     function addLiquidity(uint256 marginQty)
         public
         returns (uint256 lpTokenQty)
     {
         // TODO get price
+        // TODO get fee tier of user
         // TODO check requirements; amount to transfer is less than balance
         // TODO mint amount of token
     }
@@ -68,6 +77,7 @@ contract LpPool {
         // TODO burn amount of token
     }
 
+<<<<<<< HEAD
     function mint() public {
         // TODO mint amount of token; refer synthetix kwenta
     }
@@ -77,6 +87,8 @@ contract LpPool {
 >>>>>>> 373ee13 (Brief design)
     }
 
+=======
+>>>>>>> 506a2d4 (Design Lp pool architecture)
     function getPrice() public view returns (uint256 _price) {
         // TODO supply: supply + unrealized pnl from position manager
         // TODO demand: USDC balance in this contract
