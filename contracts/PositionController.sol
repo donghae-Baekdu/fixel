@@ -22,25 +22,38 @@ contract PositionController is ERC721Enumerable {
     //mocking
 
     enum Side {
-        LONG, SHORT
+        LONG,
+        SHORT
     }
 
-    struct Position{
+    struct Position {
         uint80 poolId;
         uint256 margin;
         uint256 price;
         uint256 positionAmount;
         Side side;
     }
-    
-    constructor(address _poolContract, address _marketContract, address _priceOracle) ERC721("Renaissance Position", "rPos") {
+
+    constructor(
+        address _poolContract,
+        address _marketContract,
+        address _priceOracle
+    ) ERC721("Renaissance Position", "rPos") {
         poolContract = ILpPool(_poolContract);
         marketContract = IMarket(_marketContract);
         priceOracle = IPriceOracle(_priceOracle);
     }
 
-    function openPosition(uint80 poolId, uint256 liquidity, uint256 positionAmount, Side side) external {
-        require(USDC.balanceOf(msg.sender) >= liquidity, "Insufficient Balance");
+    function openPosition(
+        uint80 poolId,
+        uint256 liquidity,
+        uint256 positionAmount,
+        Side side
+    ) external {
+        require(
+            USDC.balanceOf(msg.sender) >= liquidity,
+            "Insufficient Balance"
+        );
 
         USDC.transferFrom(msg.sender, address(this), liquidity);
         USDC.approve(address(poolContract), liquidity);
@@ -48,12 +61,20 @@ contract PositionController is ERC721Enumerable {
         uint256 margin = poolContract.addLiquidity(liquidity);
         uint32 maxLeverage = marketContract.getMarketMaxLeverage(poolId);
         uint256 price = priceOracle.getPrice(poolId);
-        require(maxLeverage*liquidity < positionAmount*price, "Excessive Leverage");
-        
+        require(
+            maxLeverage * liquidity < positionAmount * price,
+            "Excessive Leverage"
+        );
 
         uint256 tokenId = totalSupply();
         _mint(msg.sender, tokenId);
-        positions[tokenId] = Position(poolId, margin,price, positionAmount, side);
+        positions[tokenId] = Position(
+            poolId,
+            margin,
+            price,
+            positionAmount,
+            side
+        );
     }
 
     // function approve(address to, uint256 tokenId) public virtual override {
