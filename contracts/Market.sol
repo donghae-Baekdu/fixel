@@ -44,4 +44,8 @@ contract Market is Ownable {
         require(poolId < marketCount, "Invalid Pool Id");
         return maxLeverage[poolId];
     }
+
+    function getPositionManager() external view returns (address) {}
+
+    function getLpPool() external view returns (address) {}
 }
