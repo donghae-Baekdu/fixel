@@ -36,7 +36,11 @@ contract PositionController is ERC721Enumerable {
 
     constructor(
         address _poolContract,
+<<<<<<< HEAD
         address _factoryContract,
+=======
+        address _marketContract,
+>>>>>>> 373ee13 (Brief design)
         address _priceOracle
     ) ERC721("Renaissance Position", "rPos") {
         poolContract = ILpPool(_poolContract);

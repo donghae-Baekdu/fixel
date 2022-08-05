@@ -6,6 +6,7 @@ import "./Factory.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+<<<<<<< HEAD
 contract LpPool is LpToken {
     enum exchangerCall {
         yes,
@@ -47,6 +48,33 @@ contract LpPool is LpToken {
         // TODO get price
         // TODO check requirements; amount to transfer is less than balance
         // TODO burn amount of token
+=======
+contract LpPool {
+    function addLiquidity(uint256 marginQty)
+        public
+        returns (uint256 lpTokenQty)
+    {
+        // TODO get price
+        // TODO check requirements; amount to transfer is less than balance
+        // TODO mint amount of token
+    }
+
+    function removeLiquidity(uint256 lpTokenQty)
+        public
+        returns (uint256 marginQty)
+    {
+        // TODO get price
+        // TODO check requirements; amount to transfer is less than balance
+        // TODO burn amount of token
+    }
+
+    function mint() public {
+        // TODO mint amount of token; refer synthetix kwenta
+    }
+
+    function burn() public {
+        // TODO burn amount of token; refer synthetix kwenta
+>>>>>>> 373ee13 (Brief design)
     }
 
     function getPrice() public view returns (uint256 _price) {
