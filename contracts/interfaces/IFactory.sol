@@ -2,11 +2,17 @@
 pragma solidity ^0.8.9;
 
 interface IFactory {
-    function addMarket(string memory name, uint32 _maxLeverage) external;
+    enum exchangerCall {
+        yes,
+        no
+    }
 
-    function changeMaxLeverage(uint80 poolId, uint32 _maxLeverage) external;
+    event LpPoolCreated(address poolAddress, address owner);
 
-    function getMarketMaxLeverage(uint80 poolId) external view returns (uint32);
+    event PositionControllerCreated(
+        address positionControllerAddress,
+        address owner
+    );
 
     function getPositionController() external view returns (address);
 
@@ -18,10 +24,14 @@ interface IFactory {
 
     function createLpPool() external returns (address);
 
-    function getFeeTier(address user)
+    function setFeeTier(
+        address user,
+        uint80 fee,
+        exchangerCall flag
+    ) external;
+
+    function getFeeTier(address user, exchangerCall flag)
         external
         view
         returns (uint80 _fee, uint80 _feeTierDenom);
-
-    function setFeeTier(address user, uint80 fee) external;
 }

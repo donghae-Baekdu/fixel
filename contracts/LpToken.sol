@@ -37,6 +37,7 @@ contract LpToken is IERC20 {
         address to,
         uint value
     ) private {
+        // TODO require needed
         balanceOf[from] = balanceOf[from].sub(value);
         balanceOf[to] = balanceOf[to].add(value);
         emit Transfer(from, to, value);

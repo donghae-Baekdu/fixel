@@ -8,56 +8,16 @@ import "./interfaces/IFactory.sol";
 
 // change name into factory
 contract Factory is Ownable, IFactory {
-    mapping(uint80 => string) public markets;
-    mapping(uint80 => uint32) public maxLeverage;
-    uint80 marketCount;
-    mapping(address => uint80) public feeTier; // bp
     uint80 public constant feeTierDenom = 10000;
+    uint80 defaultExchangeFeeTier; // bp
+    uint80 defaultLpFeeTier; // bp
 
     LpPool public lpPool;
     PositionController public positionController;
 
-    event AddMarket(uint80 poolId, string name, uint32 maxLeverage);
-    event ChangeMaxLeverage(uint80 poolId, uint32 maxLeverage);
-    event LpPoolCreated(address poolAddress, address owner);
-    event PositionControllerCreated(
-        address positionControllerAddress,
-        address owner
-    );
-
-    constructor() {
-        marketCount = 0;
+    function getPositionController() external view returns (address) {
+        return address(positionController);
     }
-
-    function addMarket(string memory name, uint32 _maxLeverage)
-        public
-        onlyOwner
-    {
-        markets[marketCount] = name;
-        maxLeverage[marketCount] = _maxLeverage;
-        emit AddMarket(marketCount, name, _maxLeverage);
-        marketCount = marketCount + 1;
-    }
-
-    function changeMaxLeverage(uint80 poolId, uint32 _maxLeverage)
-        public
-        onlyOwner
-    {
-        require(_maxLeverage > 0, "Max Leverage Should Be Positive");
-        maxLeverage[poolId] = _maxLeverage;
-        emit ChangeMaxLeverage(poolId, _maxLeverage);
-    }
-
-    function getMarketMaxLeverage(uint80 poolId)
-        external
-        view
-        returns (uint32)
-    {
-        require(poolId < marketCount, "Invalid Pool Id");
-        return maxLeverage[poolId];
-    }
-
-    function getPositionController() external view returns (address) {}
 
     function createPositionController(address _lpPool, address _priceOracle)
         external
@@ -77,22 +37,36 @@ contract Factory is Ownable, IFactory {
         return address(lpPool);
     }
 
-    function createLpPool() external onlyOwner returns (address) {
-        lpPool = new LpPool(msg.sender);
+    function createLpPool(address underlyingToken)
+        external
+        onlyOwner
+        returns (address)
+    {
+        lpPool = new LpPool(msg.sender, underlyingToken);
         emit LpPoolCreated(address(lpPool), msg.sender);
         return address(lpPool);
     }
 
-    function setFeeTier(address user, uint80 fee) external onlyOwner {
-        feeTier[user] = fee;
+    function setFeeTier(
+        address user,
+        uint80 fee,
+        exchangerCall flag
+    ) external onlyOwner {
+        if (flag == exchangerCall.yes) {
+            defaultExchangeFeeTier = fee;
+        } else if (flag == exchangerCall.no) {
+            defaultLpFeeTier = fee;
+        }
     }
 
-    function getFeeTier(address user)
-        public
+    function getFeeTier(address user, exchangerCall flag)
+        external
         view
         returns (uint80 _fee, uint80 _feeTierDenom)
     {
-        _fee = feeTier[user];
+        _fee = flag == exchangerCall.yes
+            ? defaultExchangeFeeTier
+            : defaultLpFeeTier;
         _feeTierDenom = feeTierDenom;
     }
 }
