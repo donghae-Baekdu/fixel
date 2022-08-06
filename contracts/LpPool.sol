@@ -5,8 +5,11 @@ import "./LpToken.sol";
 import "./Factory.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract LpPool is LpToken, ILpPool {
+    using SafeMath for uint256;
+
     address owner;
     address factory;
     address underlyingToken;
@@ -44,7 +47,10 @@ contract LpPool is LpToken, ILpPool {
             "Not Enough Balance To Deposit"
         );
 
-        // get lp token price
+        // TODO get potential supply
+        uint256 potentialSupply = getPotentialSupply();
+
+        // TODO get exchange rate
 
         // TODO charge fee (send 30% to fee pot)
 
@@ -76,9 +82,10 @@ contract LpPool is LpToken, ILpPool {
             "Not Enough Balance To Withdraw"
         );
 
-        // get lp token price
-        // uint256 lpTokenPrice = getPrice();
-        // get fee tier of user
+        // TODO get potential supply
+        uint256 potentialSupply = getPotentialSupply();
+
+        // TODO get exchange rate
 
         // TODO get amount to burn and burn
         // _burn();
@@ -89,7 +96,8 @@ contract LpPool is LpToken, ILpPool {
     }
 
     function getPotentialSupply() public view returns (uint256 _qty) {
-        // supply: supply + unrealized pnl from position manager
+        // TODO supply: supply + unrealized pnl from position manager
+        _qty = totalSupply.add(0);
     }
 
     function setFeeTier(uint80 fee, exchangerCall flag) external onlyOwner {
