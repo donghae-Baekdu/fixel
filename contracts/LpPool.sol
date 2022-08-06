@@ -55,14 +55,22 @@ contract LpPool {
 import "./Position.sol";
 import "./LpToken.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
+contract LpPool is LpToken, Ownable {
+    mapping(address => uint) public feeTier;
+
+<<<<<<< HEAD
 contract LpPool is LpToken {
 >>>>>>> 506a2d4 (Design Lp pool architecture)
+=======
+>>>>>>> 4dc0db3 (Going to office)
     function addLiquidity(uint256 marginQty)
         public
         returns (uint256 lpTokenQty)
     {
         // TODO get price
+        uint256 lpTokenPrice = getPrice();
         // TODO get fee tier of user
         // TODO check requirements; amount to transfer is less than balance
         // TODO mint amount of token
