@@ -1,6 +1,5 @@
 pragma solidity ^0.8.9;
 
-import "./Position.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
@@ -13,8 +12,6 @@ contract LpToken is IERC20 {
     mapping(address => mapping(address => uint)) public allowance;
 
     mapping(address => uint) public nonces;
-
-    constructor() public {}
 
     function _mint() internal {
         // TODO requiremnet - set admin contract
