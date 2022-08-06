@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interfaces/IPriceOracle.sol";
-import "./interfaces/IMarket.sol";
+import "./interfaces/IFactory.sol";
 import "./interfaces/ILpPool.sol";
 
 contract PositionController is ERC721Enumerable {
@@ -14,7 +14,7 @@ contract PositionController is ERC721Enumerable {
     mapping(uint256 => address) private _tokenApprovals;
     mapping(uint256 => Position) positions;
 
-    IMarket marketContract;
+    IFactory factoryContract;
     IPriceOracle priceOracle;
     //mocking
     ILpPool poolContract;
@@ -36,11 +36,11 @@ contract PositionController is ERC721Enumerable {
 
     constructor(
         address _poolContract,
-        address _marketContract,
+        address _factoryContract,
         address _priceOracle
     ) ERC721("Renaissance Position", "rPos") {
         poolContract = ILpPool(_poolContract);
-        marketContract = IMarket(_marketContract);
+        factoryContract = IFactory(_factoryContract);
         priceOracle = IPriceOracle(_priceOracle);
     }
 
@@ -59,7 +59,7 @@ contract PositionController is ERC721Enumerable {
         USDC.approve(address(poolContract), liquidity);
 
         uint256 margin = poolContract.addLiquidity(liquidity);
-        uint32 maxLeverage = marketContract.getMarketMaxLeverage(poolId);
+        uint32 maxLeverage = factoryContract.getMarketMaxLeverage(poolId);
         uint256 price = priceOracle.getPrice(poolId);
         require(
             maxLeverage * liquidity < positionAmount * price,
