@@ -59,7 +59,7 @@ contract LpPool is LpToken, ILpPool {
         uint256 lpTokenQty,
         exchangerCall flag
     ) external returns (uint256 withdrawQty) {
-        if (flag == IFactory.exchangerCall.yes) {
+        if (flag == ILpPool.exchangerCall.yes) {
             require(
                 msg.sender == Factory(factory).getPositionController(),
                 "Not allowed to remove liquidity as a trader"

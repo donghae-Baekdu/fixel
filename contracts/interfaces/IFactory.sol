@@ -18,4 +18,6 @@ interface IFactory {
     function getLpPool() external view returns (address);
 
     function createLpPool(address underlyingToken) external returns (address);
+
+    function getPriceOracle() external view returns (address);
 }
