@@ -20,8 +20,6 @@ interface ILpPool {
         exchangerCall flag
     ) external returns (uint256 withdrawQty);
 
-    function getPrice(uint256 key) external view returns (uint256 _price);
-
     function setFeeTier(uint80 fee, exchangerCall flag) external;
 
     function getFeeTier(exchangerCall flag)

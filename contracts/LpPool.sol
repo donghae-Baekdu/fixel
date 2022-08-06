@@ -12,6 +12,7 @@ contract LpPool is LpToken, ILpPool {
     address underlyingToken;
 
     uint80 public constant feeTierDenom = 10000;
+    uint80 public MINIMUM_UNDERLYING;
     uint80 defaultExchangeFeeTier; // bp
     uint80 defaultLpFeeTier; // bp
 
@@ -33,7 +34,7 @@ contract LpPool is LpToken, ILpPool {
     ) external returns (uint256 lpTokenQty) {
         if (flag == exchangerCall.yes) {
             require(
-                msg.sender == Factory(factory).getPositionController(),
+                msg.sender == IFactory(factory).getPositionController(),
                 "Not allowed to add liquidity as a trader"
             );
         }
@@ -44,14 +45,13 @@ contract LpPool is LpToken, ILpPool {
         );
 
         // get lp token price
-        uint256 lpTokenPrice = getPrice();
 
         // TODO charge fee (send 30% to fee pot)
 
         // TODO get number of token to mint
 
         // TODO mint token
-        _mint();
+        // _mint();
     }
 
     function removeLiquidity(
@@ -59,9 +59,13 @@ contract LpPool is LpToken, ILpPool {
         uint256 lpTokenQty,
         exchangerCall flag
     ) external returns (uint256 withdrawQty) {
+<<<<<<< HEAD
         if (flag == ILpPool.exchangerCall.yes) {
+=======
+        if (flag == exchangerCall.yes) {
+>>>>>>> d85abd5 (Remove get price function)
             require(
-                msg.sender == Factory(factory).getPositionController(),
+                msg.sender == IFactory(factory).getPositionController(),
                 "Not allowed to remove liquidity as a trader"
             );
         }
@@ -73,20 +77,19 @@ contract LpPool is LpToken, ILpPool {
         );
 
         // get lp token price
-        uint256 lpTokenPrice = getPrice();
+        // uint256 lpTokenPrice = getPrice();
         // get fee tier of user
 
         // TODO get amount to burn and burn
-        _burn();
+        // _burn();
 
         // TODO charge fee (send fee to fee pot)
 
         // TODO transfer amount to both fee pot and user
     }
 
-    function getPrice(uint256 key) public view returns (uint256 _price) {
-        // TODO supply: supply + unrealized pnl from position manager
-        // TODO demand: USDC balance in this contract
+    function getPotentialSupply() public view returns (uint256 _qty) {
+        // supply: supply + unrealized pnl from position manager
     }
 
     function setFeeTier(uint80 fee, exchangerCall flag) external onlyOwner {
