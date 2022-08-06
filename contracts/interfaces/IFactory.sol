@@ -22,7 +22,7 @@ interface IFactory {
 
     function getLpPool() external view returns (address);
 
-    function createLpPool() external returns (address);
+    function createLpPool(address underlyingToken) external returns (address);
 
     function setFeeTier(
         address user,

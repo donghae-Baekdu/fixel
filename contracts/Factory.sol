@@ -24,11 +24,7 @@ contract Factory is Ownable, IFactory {
         onlyOwner
         returns (address)
     {
-        positionController = new PositionController(
-            _lpPool,
-            address(this),
-            _priceOracle
-        );
+        positionController = new PositionController(address(this));
         emit PositionControllerCreated(address(positionController), msg.sender);
         return address(positionController);
     }
