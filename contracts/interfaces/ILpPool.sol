@@ -1,7 +1,7 @@
 pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-interface ILpPool is IERC20 {
+interface ILpPool {
     function addLiquidity(uint256 marginQty)
         external
         returns (uint256 lpTokenQty);
