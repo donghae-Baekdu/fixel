@@ -2,12 +2,15 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
 import "./interfaces/IPriceOracle.sol";
 import "./interfaces/IFactory.sol";
 import "./interfaces/ILpPool.sol";
 import "./interfaces/IFactory.sol";
 
 contract PositionController is ERC721Enumerable, Ownable {
+    using SafeMath for uint256;
+
     address ZD_TOKEN_ADDRESS = address(0);
     address USDC_TOKEN_ADDRESS = address(0);
     IERC20 USDC = IERC20(USDC_TOKEN_ADDRESS);
@@ -21,13 +24,8 @@ contract PositionController is ERC721Enumerable, Ownable {
     mapping(uint256 => MarketStatus) marketStatus;
 
     IFactory factoryContract;
-    IPriceOracle priceOracle;
 
-    //mocking
-    ILpPool poolContract;
-    //mocking
-
-    event ChangeMaxLeverage(uint80 poolId, uint32 _maxLeverage);
+    event ChangeMaxLeverage(uint80 marketId, uint32 _maxLeverage);
     event AddMarket(uint80 marketCount, string name, uint32 _maxLeverage);
 
     enum Side {
@@ -35,8 +33,13 @@ contract PositionController is ERC721Enumerable, Ownable {
         SHORT
     }
 
+    enum Sign {
+        POS,
+        NEG
+    }
+
     struct Position {
-        uint80 poolId;
+        uint80 marketId;
         uint32 leverage;
         uint256 margin;
         uint256 price;
@@ -45,9 +48,12 @@ contract PositionController is ERC721Enumerable, Ownable {
 
     struct MarketStatus {
         uint256 margin;
+        Sign pnlSign;
         uint256 unrealizedPnl;
         uint256 totalLongPositionFactor;
         uint256 totalShortPositionFactor;
+        uint256 lastPrice;
+        uint256 lastBlockNumber;
     }
 
     constructor(address _factoryContract)
@@ -57,7 +63,7 @@ contract PositionController is ERC721Enumerable, Ownable {
     }
 
     function openPosition(
-        uint80 poolId,
+        uint80 marketId,
         uint256 liquidity,
         uint32 leverage,
         Side side
@@ -68,21 +74,23 @@ contract PositionController is ERC721Enumerable, Ownable {
         );
 
         poolContract = ILpPool(factoryContract.getLpPool());
+        priceOracle = IPriceOracle(factoryContract.getPriceOracle());
+
         USDC.transferFrom(msg.sender, address(this), liquidity);
         USDC.approve(address(poolContract), liquidity);
 
         uint256 margin = poolContract.addLiquidity(
             msg.sender,
             liquidity,
-            IFactory.exchangerCall.yes
+            ILpPool.exchangerCall.yes
         );
-        uint256 price = priceOracle.getPrice(poolId);
+        uint256 price = priceOracle.getPrice(marketId);
 
-        require(leverage <= maxLeverage[poolId], "Excessive Leverage");
+        require(leverage <= maxLeverage[marketId], "Excessive Leverage");
 
         uint256 tokenId = totalSupply();
         _mint(msg.sender, tokenId);
-        positions[tokenId] = Position(poolId, leverage, margin, price, side);
+        positions[tokenId] = Position(marketId, leverage, margin, price, side);
     }
 
     function addMarket(string memory name, uint32 _maxLeverage)
@@ -95,21 +103,212 @@ contract PositionController is ERC721Enumerable, Ownable {
         marketCount = marketCount + 1;
     }
 
-    function changeMaxLeverage(uint80 poolId, uint32 _maxLeverage)
+    function changeMaxLeverage(uint80 marketId, uint32 _maxLeverage)
         public
         onlyOwner
     {
         require(_maxLeverage > 0, "Max Leverage Should Be Positive");
-        maxLeverage[poolId] = _maxLeverage;
-        emit ChangeMaxLeverage(poolId, _maxLeverage);
+        require(marketId < marketCount, "Invalid Pool Id");
+        maxLeverage[marketId] = _maxLeverage;
+        emit ChangeMaxLeverage(marketId, _maxLeverage);
     }
 
-    function getMarketMaxLeverage(uint80 poolId)
+    function getMarketMaxLeverage(uint80 marketId)
         external
         view
         returns (uint32)
     {
-        require(poolId < marketCount, "Invalid Pool Id");
-        return maxLeverage[poolId];
+        require(marketId < marketCount, "Invalid Pool Id");
+        return maxLeverage[marketId];
+    }
+
+    function applyUnrealizedPnl(uint80 marketId)
+        external
+        returns (bool, uint256)
+    {
+        require(marketId < marketCount, "Invalid Pool Id");
+        if (marketStatus.lastBlockNumber == block.number) {
+            return [marketStatus.pnlSign, marketStatus.unrealizedPnl];
+        }
+        uint256 currentPrice = IPriceOracle(factoryContract.getPriceOracle())
+            .getPrice(marketId);
+
+        if (marketStatus.lastPrice < currentPrice) {
+            uint256 longPositionsProfit = marketStatus
+                .totalLongPositionFactor
+                .mul(currentPrice.sub(marketStatus.lastPrice));
+            uint256 shortPositionsLoss = marketStatus
+                .totalShortPositionFactor
+                .mul(currentPrice.sub(marketStatus.lastPrice));
+
+            if (longPositionsProfit > shortPositionsLoss) {
+                uint256 profit = longPositionsProfit.sub(shortPositionsLoss);
+                if (marketStatus.pnlSign == Sign.POS) {
+                    marketStatus.unrealizedPnl = marketStatus.unrealizedPnl.add(
+                        profit
+                    );
+                } else {
+                    if (marketStatus.unrealizedPnl < profit) {
+                        marketStatus.pnlSign = Sign.POS;
+                        marketStatus.unrealizedPnl = profit.sub(
+                            marketStatus.unrealizedPnl
+                        );
+                    } else {
+                        marketStatus.unrealizedPnl = marketStatus
+                            .unrealizedPnl
+                            .sub(profit);
+                    }
+                }
+            } else {
+                uint256 loss = shortPositionsLoss.sub(longPositionsProfit);
+                if (marketStatus.pnlSign == Sign.NEG) {
+                    marketStatus.unrealizedPnl = marketStatus.unrealizedPnl.add(
+                        loss
+                    );
+                } else {
+                    if (marketStatus.unrealizedPnl < loss) {
+                        marketStatus.pnlSign = Sign.NEG;
+                        marketStatus.unrealizedPnl = loss.sub(
+                            marketStatus.unrealizedPnl
+                        );
+                    } else {
+                        marketStatus.unrealizedPnl = marketStatus
+                            .unrealizedPnl
+                            .sub(loss);
+                    }
+                }
+            }
+        } else {
+            uint256 longPositionsLoss = marketStatus
+                .totalLongPositionFactor
+                .mul(marketStatus.lastPrice.sub(currentPrice));
+            uint256 shortPositionsProfit = marketStatus
+                .totalShortPositionFactor
+                .mul(marketStatus.lastPrice.sub(currentPrice));
+
+            if (shortPositionsProfit > longPositionsLoss) {
+                uint256 profit = shortPositionsProfit.sub(longPositionsLoss);
+                if (marketStatus.pnlSign == Sign.POS) {
+                    marketStatus.unrealizedPnl = marketStatus.unrealizedPnl.add(
+                        profit
+                    );
+                } else {
+                    if (marketStatus.unrealizedPnl < profit) {
+                        marketStatus.pnlSign = Sign.POS;
+                        marketStatus.unrealizedPnl = profit.sub(
+                            marketStatus.unrealizedPnl
+                        );
+                    } else {
+                        marketStatus.unrealizedPnl = marketStatus
+                            .unrealizedPnl
+                            .sub(profit);
+                    }
+                }
+            } else {
+                uint256 loss = longPositionsLoss.sub(shortPositionsProfit);
+                if (marketStatus.pnlSign == Sign.NEG) {
+                    marketStatus.unrealizedPnl = marketStatus.unrealizedPnl.add(
+                        loss
+                    );
+                } else {
+                    if (marketStatus.unrealizedPnl < loss) {
+                        marketStatus.pnlSign = Sign.NEG;
+                        marketStatus.unrealizedPnl = loss.sub(
+                            marketStatus.unrealizedPnl
+                        );
+                    } else {
+                        marketStatus.unrealizedPnl = marketStatus
+                            .unrealizedPnl
+                            .sub(loss);
+                    }
+                }
+            }
+        }
+        marketStatus.lastPrice = currentPrice;
+        marketStatus.lastBlockNumber = block.number;
+        return [marketStatus.pnlSign, marketStatus.unrealizedPnl];
+    }
+
+    function getUnrealizedPnl(uint80 marketId)
+        external
+        view
+        returns (bool isPositive, uint256 pnl)
+    {
+        require(marketId < marketCount, "Invalid Pool Id");
+        if (marketStatus.lastBlockNumber == block.number) {
+            return [marketStatus.pnlSign, marketStatus.unrealizedPnl];
+        }
+        isPositive = marketStatus.pnlSign;
+
+        uint256 currentPrice = IPriceOracle(factoryContract.getPriceOracle())
+            .getPrice(marketId);
+
+        if (marketStatus.lastPrice < currentPrice) {
+            uint256 longPositionsProfit = marketStatus
+                .totalLongPositionFactor
+                .mul(currentPrice.sub(marketStatus.lastPrice));
+            uint256 shortPositionsLoss = marketStatus
+                .totalShortPositionFactor
+                .mul(currentPrice.sub(marketStatus.lastPrice));
+
+            if (longPositionsProfit > shortPositionsLoss) {
+                uint256 profit = longPositionsProfit.sub(shortPositionsLoss);
+                if (marketStatus.pnlSign == Sign.POS) {
+                    pnl = marketStatus.unrealizedPnl.add(profit);
+                } else {
+                    if (marketStatus.unrealizedPnl < profit) {
+                        isPositive = Sign.POS;
+                        pnl = profit.sub(marketStatus.unrealizedPnl);
+                    } else {
+                        pnl = marketStatus.unrealizedPnl.sub(profit);
+                    }
+                }
+            } else {
+                uint256 loss = shortPositionsLoss.sub(longPositionsProfit);
+                if (marketStatus.pnlSign == Sign.NEG) {
+                    pnl = marketStatus.unrealizedPnl.add(loss);
+                } else {
+                    if (marketStatus.unrealizedPnl < loss) {
+                        isPositive = Sign.NEG;
+                        pnl = loss.sub(marketStatus.unrealizedPnl);
+                    } else {
+                        pnl = marketStatus.unrealizedPnl.sub(loss);
+                    }
+                }
+            }
+        } else {
+            uint256 longPositionsLoss = marketStatus
+                .totalLongPositionFactor
+                .mul(marketStatus.lastPrice.sub(currentPrice));
+            uint256 shortPositionsProfit = marketStatus
+                .totalShortPositionFactor
+                .mul(marketStatus.lastPrice.sub(currentPrice));
+
+            if (shortPositionsProfit > longPositionsLoss) {
+                uint256 profit = shortPositionsProfit.sub(longPositionsLoss);
+                if (marketStatus.pnlSign == Sign.POS) {
+                    pnl = marketStatus.unrealizedPnl.add(profit);
+                } else {
+                    if (marketStatus.unrealizedPnl < profit) {
+                        isPositive = Sign.POS;
+                        pnl = profit.sub(marketStatus.unrealizedPnl);
+                    } else {
+                        pnl = marketStatus.unrealizedPnl.sub(profit);
+                    }
+                }
+            } else {
+                uint256 loss = longPositionsLoss.sub(shortPositionsProfit);
+                if (marketStatus.pnlSign == Sign.NEG) {
+                    pnl = marketStatus.unrealizedPnl.add(loss);
+                } else {
+                    if (marketStatus.unrealizedPnl < loss) {
+                        isPositive = Sign.NEG;
+                        pnl = loss.sub(marketStatus.unrealizedPnl);
+                    } else {
+                        pnl = marketStatus.unrealizedPnl.sub(loss);
+                    }
+                }
+            }
+        }
     }
 }
