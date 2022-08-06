@@ -5,10 +5,13 @@ pragma solidity ^0.8.9;
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+// change name into factory
 contract Market is Ownable {
     mapping(uint80 => string) public markets;
     mapping(uint80 => uint32) public maxLeverage;
     uint80 marketCount;
+    mapping(address => uint80) public feeTier; // bp
+    uint256 public constant feeTierDenom = 10000;
 
     event AddMarket(uint80 poolId, string name, uint32 maxLeverage);
     event ChangeMaxLeverage(uint80 poolId, uint32 maxLeverage);
@@ -48,4 +51,16 @@ contract Market is Ownable {
     function getPositionManager() external view returns (address) {}
 
     function getLpPool() external view returns (address) {}
+
+    function setFeeTier(address user, uint80 fee) public onlyOwner {
+        feeTier[user] = fee;
+    }
+
+    function getFeeTier(address user) public view returns (uint80 _fee) {
+        _fee = feeTier[user];
+    }
+
+    function getFeeDenom(address user) public view returns (uint80 _feeTierDenom) {
+        _feeDenom = feeTierDenom
+    }
 }
