@@ -3,13 +3,17 @@ pragma solidity ^0.8.9;
 import "./Position.sol";
 import "./LpToken.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract LpPool is LpToken {
+contract LpPool is LpToken, Ownable {
+    mapping(address => uint) public feeTier;
+
     function addLiquidity(uint256 marginQty)
         public
         returns (uint256 lpTokenQty)
     {
         // TODO get price
+        uint256 lpTokenPrice = getPrice();
         // TODO get fee tier of user
         // TODO check requirements; amount to transfer is less than balance
         // TODO mint amount of token
