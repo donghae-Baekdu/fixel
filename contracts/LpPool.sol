@@ -6,11 +6,14 @@ import "./Factory.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract LpPool is LpToken {
-    mapping(address => uint) public feeTier;
+contract LpPool is LpToken, ILpPool {
     address owner;
     address factory;
     address underlyingToken;
+
+    uint80 public constant feeTierDenom = 10000;
+    uint80 defaultExchangeFeeTier; // bp
+    uint80 defaultLpFeeTier; // bp
 
     constructor(address _owner, address _underlyingToken) public {
         owner = _owner;
@@ -18,14 +21,17 @@ contract LpPool is LpToken {
         factory = msg.sender;
     }
 
+    modifier onlyOwner() {
+        require(msg.sender == owner, "You are not owner of this contract");
+        _;
+    }
+
     function addLiquidity(
         address user,
         uint256 depositQty,
-        IFactory.exchangerCall flag
+        exchangerCall flag
     ) external returns (uint256 lpTokenQty) {
-        uint80 feeTier;
-        uint80 feeTierDenom;
-        if (flag == IFactory.exchangerCall.yes) {
+        if (flag == exchangerCall.yes) {
             require(
                 msg.sender == Factory(factory).getPositionController(),
                 "Not allowed to add liquidity as a trader"
@@ -39,21 +45,20 @@ contract LpPool is LpToken {
 
         // get lp token price
         uint256 lpTokenPrice = getPrice();
-        // get fee tier of user
-        (feeTier, feeTierDenom) = Factory(factory).getFeeTier(user, flag);
-        // TODO charge fee and get number of token to mint
 
-        // TODO mint amount of token
+        // TODO charge fee (send 30% to fee pot)
+
+        // TODO get number of token to mint
+
+        // TODO mint token
         _mint();
     }
 
     function removeLiquidity(
         address user,
         uint256 lpTokenQty,
-        IFactory.exchangerCall flag
+        exchangerCall flag
     ) external returns (uint256 withdrawQty) {
-        uint80 feeTier;
-        uint80 feeTierDenom;
         if (flag == IFactory.exchangerCall.yes) {
             require(
                 msg.sender == Factory(factory).getPositionController(),
@@ -70,15 +75,36 @@ contract LpPool is LpToken {
         // get lp token price
         uint256 lpTokenPrice = getPrice();
         // get fee tier of user
-        (feeTier, feeTierDenom) = Factory(factory).getFeeTier(user, flag);
+
         // TODO get amount to burn and burn
         _burn();
 
-        // TODO transfer to
+        // TODO charge fee (send fee to fee pot)
+
+        // TODO transfer amount to both fee pot and user
     }
 
-    function getPrice() public view returns (uint256 _price) {
+    function getPrice(uint256 key) public view returns (uint256 _price) {
         // TODO supply: supply + unrealized pnl from position manager
         // TODO demand: USDC balance in this contract
+    }
+
+    function setFeeTier(uint80 fee, exchangerCall flag) external onlyOwner {
+        if (flag == exchangerCall.yes) {
+            defaultExchangeFeeTier = fee;
+        } else if (flag == exchangerCall.no) {
+            defaultLpFeeTier = fee;
+        }
+    }
+
+    function getFeeTier(exchangerCall flag)
+        external
+        view
+        returns (uint80 _fee, uint80 _feeTierDenom)
+    {
+        _fee = flag == exchangerCall.yes
+            ? defaultExchangeFeeTier
+            : defaultLpFeeTier;
+        _feeTierDenom = feeTierDenom;
     }
 }

@@ -42,27 +42,4 @@ contract Factory is Ownable, IFactory {
         emit LpPoolCreated(address(lpPool), msg.sender);
         return address(lpPool);
     }
-
-    function setFeeTier(
-        address user,
-        uint80 fee,
-        exchangerCall flag
-    ) external onlyOwner {
-        if (flag == exchangerCall.yes) {
-            defaultExchangeFeeTier = fee;
-        } else if (flag == exchangerCall.no) {
-            defaultLpFeeTier = fee;
-        }
-    }
-
-    function getFeeTier(address user, exchangerCall flag)
-        external
-        view
-        returns (uint80 _fee, uint80 _feeTierDenom)
-    {
-        _fee = flag == exchangerCall.yes
-            ? defaultExchangeFeeTier
-            : defaultLpFeeTier;
-        _feeTierDenom = feeTierDenom;
-    }
 }
