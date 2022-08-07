@@ -3,6 +3,8 @@ pragma solidity ^0.8.9;
 import "./PositionController.sol";
 import "./LpToken.sol";
 import "./Factory.sol";
+import "./interfaces/IFactory.sol";
+import "./interfaces/ILpPool.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -24,6 +26,14 @@ contract LpPool is LpToken, ILpPool {
 
     modifier onlyOwner() {
         require(msg.sender == owner, "You are not owner of this contract");
+        _;
+    }
+
+    modifier onlyExchanger() {
+        require(
+            msg.sender == IFactory(factory).getPositionController(),
+            "You are Exchanger of this pool"
+        );
         _;
     }
 
@@ -59,11 +69,7 @@ contract LpPool is LpToken, ILpPool {
         uint256 lpTokenQty,
         exchangerCall flag
     ) external returns (uint256 withdrawQty) {
-<<<<<<< HEAD
-        if (flag == ILpPool.exchangerCall.yes) {
-=======
         if (flag == exchangerCall.yes) {
->>>>>>> dddf7a3 (.)
             require(
                 msg.sender == IFactory(factory).getPositionController(),
                 "Not allowed to remove liquidity as a trader"
@@ -109,5 +115,13 @@ contract LpPool is LpToken, ILpPool {
             ? defaultExchangeFeeTier
             : defaultLpFeeTier;
         _feeTierDenom = feeTierDenom;
+    }
+
+    function mint(address to, uint256 value) external onlyExchanger {
+        _mint(to, value);
+    }
+
+    function burn(address to, uint256 value) external onlyExchanger {
+        _burn(to, value);
     }
 }

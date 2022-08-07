@@ -155,11 +155,13 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
 
         uint256 refundGd;
 
+        ILpPool lpPool = ILpPool(factoryContract.getLpPool());
+
         if (isProfit) {
             marketStatus[marketId].unrealizedPnl = marketStatus[marketId]
                 .unrealizedPnl
                 .sub(pnl);
-            GD.mint(address(this), pnl);
+            lpPool.mint(address(this), pnl);
             refundGd = positions[tokenId].margin.add(pnl);
         } else {
             marketStatus[marketId].unrealizedPnl = marketStatus[marketId]
@@ -168,7 +170,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             uint256 burnAmount = pnl > positions[marketId].margin
                 ? positions[marketId].margin
                 : pnl;
-            GD.burn(address(this), burnAmount);
+            lpPool.burn(address(this), burnAmount);
             refundGd = positions[tokenId].margin.sub(burnAmount);
         }
 
@@ -177,12 +179,11 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         );
         positions[tokenId].status = Status.CLOSE;
 
-        uint256 receiveAmount = ILpPool(factoryContract.getLpPool())
-            .removeLiquidity(
-                ownerOf(tokenId),
-                refundGd,
-                ILpPool.exchangerCall.yes
-            );
+        uint256 receiveAmount = lpPool.removeLiquidity(
+            ownerOf(tokenId),
+            refundGd,
+            ILpPool.exchangerCall.yes
+        );
         emit ClosePosition(
             ownerOf(tokenId),
             marketId,
