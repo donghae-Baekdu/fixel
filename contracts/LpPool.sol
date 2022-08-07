@@ -8,13 +8,14 @@ import "./interfaces/ILpPool.sol";
 import "./interfaces/IPositionController.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-<<<<<<< HEAD
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-=======
->>>>>>> 5d4c754 (.)
 
 contract LpPool is LpToken, ILpPool {
+    using SafeMath for uint256;
+    using SafeMath for uint80;
+    using SafeERC20 for IERC20;
+
     address owner;
     address factory;
     address underlyingToken;
@@ -118,7 +119,6 @@ contract LpPool is LpToken, ILpPool {
         address user,
         uint256 lpTokenQty,
         exchangerCall flag
-<<<<<<< HEAD
     ) external returns (uint256 _withdrawQty) {
         require(
             flag == exchangerCall.yes || flag == exchangerCall.no,
@@ -126,14 +126,6 @@ contract LpPool is LpToken, ILpPool {
         );
 
         if (flag == exchangerCall.yes) {
-=======
-    ) external returns (uint256 withdrawQty) {
-<<<<<<< HEAD
-        if (flag == ILpPool.exchangerCall.yes) {
-=======
-        if (flag == exchangerCall.yes) {
->>>>>>> dddf7a3 (.)
->>>>>>> 5d4c754 (.)
             require(
                 msg.sender == IFactory(factory).getPositionController(),
                 "Not allowed to add liquidity as a trader"
@@ -153,7 +145,6 @@ contract LpPool is LpToken, ILpPool {
         );
 
         // get lp token price
-<<<<<<< HEAD
         uint256 potentialSupply = getPotentialSupply();
         // delta GD / GD supply * Collateral locked (decimals is USDC's decimals)
         uint256 amountFromExchange = lpTokenQty.mul(collateralLocked).div(
@@ -172,13 +163,6 @@ contract LpPool is LpToken, ILpPool {
         uint256 toFeePotQty = totalFeeQty.sub(
             totalFeeQty.mul(feeTierDenom.sub(feeTier)).div(feeTierDenom)
         );
-=======
-        // uint256 lpTokenPrice = getPrice();
-        // get fee tier of user
-
-        // TODO get amount to burn and burn
-        // _burn();
->>>>>>> 5d4c754 (.)
 
         // transfer from pool to user
         IERC20(underlyingToken).safeTransferFrom(
@@ -202,7 +186,6 @@ contract LpPool is LpToken, ILpPool {
     }
 
     function getPotentialSupply() public view returns (uint256 _qty) {
-<<<<<<< HEAD
         // potential supply: supply + unrealized pnl from position manager
         address positionController = IFactory(factory).getPositionController();
         (bool isPositive, uint256 potentialSupply) = IPositionController(
@@ -212,9 +195,6 @@ contract LpPool is LpToken, ILpPool {
         _qty = isPositive
             ? totalSupply.add(potentialSupply)
             : totalSupply.sub(potentialSupply);
-=======
-        // supply: supply + unrealized pnl from position manager
->>>>>>> 5d4c754 (.)
     }
 
     function setFeeTier(uint80 fee, exchangerCall flag) external onlyOwner {
