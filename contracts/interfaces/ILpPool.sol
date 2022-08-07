@@ -26,4 +26,8 @@ interface ILpPool {
         external
         view
         returns (uint80 _fee, uint80 _feeTierDenom);
+
+    function mint(address to, uint256 value) external;
+
+    function burn(address to, uint256 value) external;
 }
