@@ -8,6 +8,18 @@ interface ILpPool {
         no
     }
 
+    event LiquidityAdded(
+        address user,
+        uint256 depositedCollateral,
+        uint256 mintedLpToken
+    );
+
+    event LiquidityRemoved(
+        address user,
+        uint256 withdrewCollateral,
+        uint256 burntLpToken
+    );
+
     function addLiquidity(
         address user,
         uint256 depositQty,
