@@ -10,6 +10,7 @@ import "./interfaces/IPositionController.sol";
 
 contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     using SafeMath for uint256;
+    using SafeMath for uint32;
 
     uint256 public LEVERAGE_DECIMAL = 2;
 
@@ -18,8 +19,10 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     IERC20 USDC = IERC20(USDC_TOKEN_ADDRESS);
     IERC20 GD = IERC20(GD_TOKEN_ADDRESS);
 
+    //TODO: make marketInfo structure
     mapping(uint80 => string) public markets;
     mapping(uint80 => uint32) public maxLeverage;
+    mapping(uint80 => uint256) public liquidationThreshold; //bp
     uint80 marketCount;
 
     mapping(uint256 => address) private _tokenApprovals;
@@ -96,6 +99,65 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
         uint256 returnAmount = _closePosition(marketId, tokenId);
         USDC.transfer(ownerOf(tokenId), returnAmount);
+    }
+
+    function liquidate(uint80 marketId, uint256 tokenId) external {
+        require(positions[tokenId].status == Status.OPEN, "Already Closed");
+        uint256 currentMargin = calculateMargin(tokenId);
+        uint256 marginRatio = currentMargin.mul(uint256(100)).div(
+            positions[tokenId].margin
+        );
+        require(
+            marginRatio < liquidationThreshold[marketId],
+            "Not Liquidatable"
+        );
+        uint256 returnAmount = _closePosition(marketId, tokenId);
+        USDC.transfer(msg.sender, returnAmount);
+        emit Liquidation(ownerOf(tokenId), msg.sender, marketId, tokenId);
+    }
+
+    function calculateMargin(uint256 tokenId) public view returns (uint256) {
+        require(positions[tokenId].status == Status.OPEN, "Alread Closed");
+        uint256 currentPrice = IPriceOracle(factoryContract.getPriceOracle())
+            .getPrice(positions[tokenId].marketId);
+        uint256 multiplier = positions[tokenId]
+            .leverage
+            .mul(positions[tokenId].margin)
+            .div(positions[tokenId].price)
+            .div(uint256(10)**LEVERAGE_DECIMAL);
+        if (positions[tokenId].side == Side.LONG) {
+            if (currentPrice > positions[tokenId].price) {
+                return
+                    positions[tokenId].margin.add(
+                        (currentPrice.sub(positions[tokenId].price)).mul(
+                            multiplier
+                        )
+                    );
+            } else {
+                return
+                    positions[tokenId].margin.sub(
+                        (positions[tokenId].price.sub(currentPrice)).mul(
+                            multiplier
+                        )
+                    );
+            }
+        } else {
+            if (currentPrice > positions[tokenId].price) {
+                return
+                    positions[tokenId].margin.sub(
+                        (currentPrice.sub(positions[tokenId].price)).mul(
+                            multiplier
+                        )
+                    );
+            } else {
+                return
+                    positions[tokenId].margin.add(
+                        (positions[tokenId].price.sub(currentPrice)).mul(
+                            multiplier
+                        )
+                    );
+            }
+        }
     }
 
     function _closePosition(uint80 marketId, uint256 tokenId)
@@ -231,12 +293,14 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         }
     }
 
-    function addMarket(string memory name, uint32 _maxLeverage)
-        public
-        onlyOwner
-    {
+    function addMarket(
+        string memory name,
+        uint32 _maxLeverage,
+        uint256 threshold
+    ) public onlyOwner {
         markets[marketCount] = name;
         maxLeverage[marketCount] = _maxLeverage;
+        liquidationThreshold[marketCount] = threshold;
         emit AddMarket(marketCount, name, _maxLeverage);
         marketCount = marketCount + 1;
     }

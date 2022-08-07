@@ -64,6 +64,14 @@ interface IPositionController is IERC721Enumerable {
         uint256 receiveAmount
     );
 
+    event Liquidation(
+        address user,
+        address liquidator,
+        uint80 marketId,
+        uint256 tokenId
+    );
+
+
     function openPosition(
         uint80 marketId,
         uint256 liquidity,
@@ -73,6 +81,8 @@ interface IPositionController is IERC721Enumerable {
 
     function closePosition(uint80 marketId, uint256 tokenId) external;
 
+    function liquidate(uint80 marketId, uint256 tokenId) external;
+    
     function getMarketMaxLeverage(uint80 marketId)
         external
         view
