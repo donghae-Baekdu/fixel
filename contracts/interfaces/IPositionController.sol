@@ -82,6 +82,11 @@ interface IPositionController is IERC721Enumerable {
         external
         returns (Sign, uint256);
 
+    function getTotalUnrealizedPnl()
+        external
+        view
+        returns (bool isPositive, uint256 value);
+
     function getUnrealizedPnl(uint80 marketId)
         external
         view
