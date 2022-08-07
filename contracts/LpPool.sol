@@ -7,8 +7,14 @@ import "./interfaces/IFactory.sol";
 import "./interfaces/ILpPool.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract LpPool is LpToken, ILpPool {
+    using SafeMath for uint256;
+    using SafeMath for uint80;
+    using SafeERC20 for IERC20;
+
     address owner;
     address factory;
     address underlyingToken;
@@ -42,26 +48,64 @@ contract LpPool is LpToken, ILpPool {
         uint256 depositQty,
         exchangerCall flag
     ) external returns (uint256 lpTokenQty) {
+        // TODO approve check
+        require(
+            flag == exchangerCall.yes || flag == exchangerCall.no,
+            "Improper flag"
+        );
+
         if (flag == exchangerCall.yes) {
             require(
                 msg.sender == IFactory(factory).getPositionController(),
                 "Not allowed to add liquidity as a trader"
             );
         }
+
+        uint80 feeTier = flag == exchangerCall.yes
+            ? defaultExchangeFeeTier
+            : defaultLpFeeTier;
         // amount to transfer is less than balance
         require(
             IERC20(underlyingToken).balanceOf(user) >= depositQty,
             "Not Enough Balance To Deposit"
         );
 
+        // charge fee (send 30% to fee pot)
+        uint256 amountToExchange = depositQty
+            .mul(feeTierDenom.sub(feeTier))
+            .div(feeTierDenom);
         // get lp token price
 
-        // TODO charge fee (send 30% to fee pot)
+        uint256 totalFeeQty = depositQty.sub(amountToExchange);
+        uint256 toFeePotQty = totalFeeQty.sub(
+            totalFeeQty.mul(feeTierDenom.sub(feeTier)).div(feeTierDenom)
+        );
 
-        // TODO get number of token to mint
+        // transfer from user to lp pool
+        IERC20(underlyingToken).safeTransferFrom(
+            user,
+            address(this),
+            depositQty
+        );
+        // transfer from lp pool to fee pot
+        IERC20(underlyingToken).safeTransferFrom(
+            address(this),
+            address(IFactory(factory).getPositionController()),
+            toFeePotQty
+        );
 
-        // TODO mint token
-        // _mint();
+        // get number of token to mint
+        uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
+            address(this)
+        );
+        uint256 potentialSupply = getPotentialSupply();
+        // delta Collateral / Collateral locked * GD supply (decimals is GD's decimals)
+        uint256 tokenToMint = amountToExchange.mul(potentialSupply).div(
+            collateralLocked
+        );
+
+        // mint token
+        _mint(msg.sender, tokenToMint);
     }
 
     function removeLiquidity(
