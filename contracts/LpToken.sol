@@ -7,20 +7,24 @@ contract LpToken is IERC20 {
     using SafeMath for uint;
 
     uint8 public constant decimals = 18;
-    uint public totalSupply;
+    uint256 public totalSupply;
     mapping(address => uint) public balanceOf;
     mapping(address => mapping(address => uint)) public allowance;
 
     mapping(address => uint) public nonces;
 
-    function _mint() internal {
+    function _mint(address to, uint value) internal {
         // TODO requiremnet - set admin contract
-        // TODO mint amount of token; refer synthetix kwenta
+        totalSupply = totalSupply.add(value);
+        balanceOf[to] = balanceOf[to].add(value);
+        emit Transfer(address(0), to, value);
     }
 
-    function _burn() internal {
+    function _burn(address from, uint value) internal {
         // TODO requiremnet - set admin contract
-        // TODO burn amount of token; refer synthetix kwenta
+        balanceOf[from] = balanceOf[from].sub(value);
+        totalSupply = totalSupply.sub(value);
+        emit Transfer(from, address(0), value);
     }
 
     function transfer(address to, uint256 amount)

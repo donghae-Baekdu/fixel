@@ -44,6 +44,7 @@ interface IPositionController is IERC721Enumerable {
 
     event ChangeMaxLeverage(uint80 marketId, uint32 _maxLeverage);
     event AddMarket(uint80 marketCount, string name, uint32 _maxLeverage);
+
     event OpenPosition(
         address user,
         uint80 marketId,

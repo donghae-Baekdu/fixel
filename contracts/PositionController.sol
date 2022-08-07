@@ -77,11 +77,12 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             marketId,
             side,
             TradeType.OPEN,
-            leverage.mul(margin).div(price)
+            margin,
+            margin.mul(leverage).div(price)
         );
 
         emit OpenPosition(
-            mgs.sender,
+            msg.sender,
             marketId,
             margin,
             leverage,
@@ -106,7 +107,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             positions[tokenId].side,
             TradeType.CLOSE,
             positions[tokenId].margin,
-            positions[tokenId].leverage.mul(positions[tokenId].margin).div(
+            positions[tokenId].margin.mul(positions[tokenId].leverage).div(
                 positions[tokenId].price
             )
         );
@@ -114,8 +115,8 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         bool isProfit;
         uint256 pnl;
         uint256 factor = positions[tokenId]
-            .leverage
-            .mul(positions[tokenId].margin)
+            .margin
+            .mul(positions[tokenId].leverage)
             .div(positions[tokenId].price);
 
         if (positions[tokenId].side == Side.LONG) {
