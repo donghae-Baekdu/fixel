@@ -9,6 +9,8 @@ interface IFactory {
         address owner
     );
 
+    event FeePotCreated(address poolAddress, address owner);
+
     function getPositionController() external view returns (address);
 
     function createPositionController(address _lpPool, address _priceOracle)
@@ -19,5 +21,11 @@ interface IFactory {
 
     function createLpPool(address underlyingToken) external returns (address);
 
+<<<<<<< HEAD
     function getPriceOracle() external view returns (address);
+=======
+    function getFeePot() external view returns (address);
+
+    function createFeePot() external returns (address);
+>>>>>>> 974bc96 (Stop for rebase:)
 }
