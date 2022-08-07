@@ -267,7 +267,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     {
         uint256 totalProfit = 0;
         uint256 totalLoss = 0;
-        for (uint256 i = 0; i < marketCount; i = i + 1) {
+        for (uint80 i = 0; i < marketCount; i = i + 1) {
             (Sign sign, uint256 pnl, ) = getUnrealizedPnl(i);
             if (sign == Sign.POS) {
                 totalProfit = totalProfit.add(pnl);
