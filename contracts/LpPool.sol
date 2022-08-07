@@ -5,6 +5,7 @@ import "./LpToken.sol";
 import "./Factory.sol";
 import "./interfaces/IFactory.sol";
 import "./interfaces/ILpPool.sol";
+import "./interfaces/IPositionController.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -47,8 +48,7 @@ contract LpPool is LpToken, ILpPool {
         address user,
         uint256 depositQty,
         exchangerCall flag
-    ) external returns (uint256 lpTokenQty) {
-        // TODO approve check
+    ) external returns (uint256 _lpTokenQty) {
         require(
             flag == exchangerCall.yes || flag == exchangerCall.no,
             "Improper flag"
@@ -61,14 +61,17 @@ contract LpPool is LpToken, ILpPool {
             );
         }
 
+        if (flag == exchangerCall.no) {
+            // amount to transfer is less than balance
+            require(
+                IERC20(underlyingToken).balanceOf(user) >= depositQty, // 이거 틀림
+                "Not Enough Balance To Deposit"
+            );
+        }
+
         uint80 feeTier = flag == exchangerCall.yes
             ? defaultExchangeFeeTier
             : defaultLpFeeTier;
-        // amount to transfer is less than balance
-        require(
-            IERC20(underlyingToken).balanceOf(user) >= depositQty,
-            "Not Enough Balance To Deposit"
-        );
 
         // charge fee (send 30% to fee pot)
         uint256 amountToExchange = depositQty
@@ -90,7 +93,7 @@ contract LpPool is LpToken, ILpPool {
         // transfer from lp pool to fee pot
         IERC20(underlyingToken).safeTransferFrom(
             address(this),
-            address(IFactory(factory).getPositionController()),
+            address(IFactory(factory).getFeePot()),
             toFeePotQty
         );
 
@@ -106,40 +109,92 @@ contract LpPool is LpToken, ILpPool {
 
         // mint token
         _mint(msg.sender, tokenToMint);
+
+        _lpTokenQty = tokenToMint;
+
+        emit LiquidityAdded(user, depositQty, tokenToMint);
     }
 
     function removeLiquidity(
         address user,
         uint256 lpTokenQty,
         exchangerCall flag
-    ) external returns (uint256 withdrawQty) {
+    ) external returns (uint256 _withdrawQty) {
+        require(
+            flag == exchangerCall.yes || flag == exchangerCall.no,
+            "Improper flag"
+        );
+
         if (flag == exchangerCall.yes) {
             require(
                 msg.sender == IFactory(factory).getPositionController(),
-                "Not allowed to remove liquidity as a trader"
+                "Not allowed to add liquidity as a trader"
             );
         }
 
         // amount to transfer is less than balance
-        require(
-            IERC20(this).balanceOf(user) >= lpTokenQty,
-            "Not Enough Balance To Withdraw"
+        if (flag == exchangerCall.no) {
+            require(
+                IERC20(this).balanceOf(user) >= lpTokenQty,
+                "Not Enough Balance To Withdraw"
+            );
+        }
+
+        uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
+            address(this)
         );
 
         // get lp token price
-        // uint256 lpTokenPrice = getPrice();
-        // get fee tier of user
+        uint256 potentialSupply = getPotentialSupply();
+        // delta GD / GD supply * Collateral locked (decimals is USDC's decimals)
+        uint256 amountFromExchange = lpTokenQty.mul(collateralLocked).div(
+            potentialSupply
+        );
 
-        // TODO get amount to burn and burn
-        // _burn();
+        uint80 feeTier = flag == exchangerCall.yes
+            ? defaultExchangeFeeTier
+            : defaultLpFeeTier;
 
-        // TODO charge fee (send fee to fee pot)
+        uint256 amountToWithdraw = amountFromExchange
+            .mul(feeTierDenom.sub(feeTier))
+            .div(feeTierDenom);
 
-        // TODO transfer amount to both fee pot and user
+        uint256 totalFeeQty = amountFromExchange.sub(amountToWithdraw);
+        uint256 toFeePotQty = totalFeeQty.sub(
+            totalFeeQty.mul(feeTierDenom.sub(feeTier)).div(feeTierDenom)
+        );
+
+        // transfer from pool to user
+        IERC20(underlyingToken).safeTransferFrom(
+            address(this),
+            user,
+            amountToWithdraw
+        );
+        // transfer from lp pool to fee pot
+        IERC20(underlyingToken).safeTransferFrom(
+            address(this),
+            address(IFactory(factory).getFeePot()),
+            toFeePotQty
+        );
+
+        // burn lp token
+        _burn(msg.sender, lpTokenQty);
+
+        _withdrawQty = amountToWithdraw;
+
+        emit LiquidityRemoved(user, amountToWithdraw, lpTokenQty);
     }
 
     function getPotentialSupply() public view returns (uint256 _qty) {
-        // supply: supply + unrealized pnl from position manager
+        // potential supply: supply + unrealized pnl from position manager
+        address positionController = IFactory(factory).getPositionController();
+        (bool isPositive, uint256 potentialSupply) = IPositionController(
+            positionController
+        ).getTotalUnrealizedPnl();
+
+        _qty = isPositive
+            ? totalSupply.add(potentialSupply)
+            : totalSupply.sub(potentialSupply);
     }
 
     function setFeeTier(uint80 fee, exchangerCall flag) external onlyOwner {

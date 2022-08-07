@@ -56,7 +56,7 @@ contract Factory is Ownable, IFactory {
     }
 
     function createFeePot() external onlyOwner returns (address) {
-        feePot = new FeePot();
+        feePot = new FeePot(msg.sender);
         emit FeePotCreated(address(lpPool), msg.sender);
         return address(feePot);
     }
