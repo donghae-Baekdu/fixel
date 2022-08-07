@@ -1,17 +1,45 @@
 pragma solidity ^0.8.9;
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./IFactory.sol";
 
 interface ILpPool {
-    function addLiquidity(uint256 marginQty)
+    enum exchangerCall {
+        yes,
+        no
+    }
+
+    event LiquidityAdded(
+        address user,
+        uint256 depositedCollateral,
+        uint256 mintedLpToken
+    );
+
+    event LiquidityRemoved(
+        address user,
+        uint256 withdrewCollateral,
+        uint256 burntLpToken
+    );
+
+    function addLiquidity(
+        address user,
+        uint256 depositQty,
+        exchangerCall flag
+    ) external returns (uint256 lpTokenQty);
+
+    function removeLiquidity(
+        address user,
+        uint256 lpTokenQty,
+        exchangerCall flag
+    ) external returns (uint256 withdrawQty);
+
+    function setFeeTier(uint80 fee, exchangerCall flag) external;
+
+    function getFeeTier(exchangerCall flag)
         external
-        returns (uint256 lpTokenQty);
+        view
+        returns (uint80 _fee, uint80 _feeTierDenom);
 
-    function removeLiquidity(uint256 lpTokenQty)
-        external
-        returns (uint256 marginQty);
+    function mint(address to, uint256 value) external;
 
-    function mint(uint256 qty) external;
-
-    function burn(uint256 qty) external;
-
-    function getPrice(uint256 key) external view returns (uint256 _price);
+    function burn(address to, uint256 value) external;
 }
