@@ -10,9 +10,9 @@ describe("LP Pool", function () {
         const Token = await ethers.getContractFactory("Token");
         const USDC = await Token.deploy();
         await USDC.deployed();
-        await USDC.mint(owner.address, ethers.utils.parseUnits("10000000", 18));
-        await USDC.mint(addr1.address, ethers.utils.parseUnits("10000000", 18));
-        await USDC.mint(addr2.address, ethers.utils.parseUnits("10000000", 18));
+        await USDC.mint(owner.address, ethers.utils.parseUnits("1000000", 18));
+        await USDC.mint(addr1.address, ethers.utils.parseUnits("1000000", 18));
+        await USDC.mint(addr2.address, ethers.utils.parseUnits("1000000", 18));
         console.log(await USDC.balanceOf(owner.address));
         console.log(await USDC.balanceOf(addr1.address));
         console.log(await USDC.balanceOf(addr2.address));
@@ -78,7 +78,7 @@ describe("LP Pool", function () {
         };
     }
 
-    it("test1", async function () {
+    it("Add Liquidity", async function () {
         const {
             USDC,
             PriceOracleContract,
@@ -90,17 +90,10 @@ describe("LP Pool", function () {
         } =
             await loadFixture(deployFixture);
 
-        console.log(await USDC.balanceOf(addr1.address));
-        console.log(await USDC.balanceOf(addr3.address));
-
-        await USDC.transferFrom(addr1.address, addr3.address, 10000);
-        console.log(await USDC.balanceOf(addr1.address));
-        console.log(await USDC.balanceOf(addr3.address));
-
 
     });
 
-    it("test2", async function () {
+    it("Remove Liquidity", async function () {
         const {
             USDC,
             PriceOracleContract,
@@ -112,19 +105,6 @@ describe("LP Pool", function () {
         } =
             await loadFixture(deployFixture);
 
-        console.log(await USDC.balanceOf(addr1.address));
-        console.log(await USDC.balanceOf(addr3.address));
-    });
-
-    it("test3", async function () {
-        const { LpPoolContract } =
-            await loadFixture(deployFixture);
-
-    });
-
-    it("test4", async function () {
-        const { LpPoolContract } =
-            await loadFixture(deployFixture);
 
     });
 });

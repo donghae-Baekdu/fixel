@@ -11,8 +11,8 @@ contract Token is IERC20 {
     uint8 public decimals = 18;
 
     function transfer(address recipient, uint amount) external returns (bool) {
-        balanceOf[msg.sender] -= amount;
-        balanceOf[recipient] += amount;
+        balanceOf[msg.sender] = balanceOf[msg.sender] - amount;
+        balanceOf[recipient] = balanceOf[recipient] + amount;
         emit Transfer(msg.sender, recipient, amount);
         return true;
     }
@@ -28,22 +28,22 @@ contract Token is IERC20 {
         address recipient,
         uint amount
     ) external returns (bool) {
-        allowance[sender][msg.sender] -= amount;
-        balanceOf[sender] -= amount;
-        balanceOf[recipient] += amount;
+        allowance[sender][msg.sender] = allowance[sender][msg.sender] - amount;
+        balanceOf[sender] = balanceOf[sender] - amount;
+        balanceOf[recipient] = balanceOf[recipient] + amount;
         emit Transfer(sender, recipient, amount);
         return true;
     }
 
     function mint(address account, uint amount) external {
-        balanceOf[account] += amount;
-        totalSupply += amount;
+        balanceOf[account] = balanceOf[account] + amount;
+        totalSupply = totalSupply + amount;
         emit Transfer(address(0), account, amount);
     }
 
     function burn(address account, uint amount) external {
-        balanceOf[account] -= amount;
-        totalSupply -= amount;
+        balanceOf[account] = balanceOf[account] + amount;
+        totalSupply = totalSupply + amount;
         emit Transfer(account, address(0), amount);
     }
 }
