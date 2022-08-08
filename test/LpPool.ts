@@ -169,19 +169,13 @@ describe("LP Pool", function () {
             const lockedUSDC = await USDC.balanceOf(LpPoolContract.address)
             const exchangedUSDC = amountToBurn.mul(lockedUSDC).div(totalSupply)
             const withdrewUSDC = exchangedUSDC.mul("999").div("1000")
-            const deltaLocked = exchangedUSDC.sub(exchangedUSDC.mul("7").div("10000"))
-
-            console.log(deltaLocked)
+            const deltaLocked = withdrewUSDC.add(exchangedUSDC.sub(exchangedUSDC.mul("9997").div("10000")))
 
             await LpPoolContract.connect(addr1).removeLiquidity(addr1.address, convertUnit("50", 18), 1)
-            console.log("1 HI")
             expect(await LpPoolContract.balanceOf(addr1.address)).to.equal(convertUnit("49.9", 18))
-            console.log("2 HI")
             expect((await USDC.balanceOf(addr1.address)).sub(addr1PrevBalance)).to.equal(withdrewUSDC)
-            console.log("3 HI")
             expect(lockedUSDC.sub(await USDC.balanceOf(LpPoolContract.address))).to.equal(deltaLocked)
-            console.log("4 HI")
-            expect(totalSupply.sub(await LpPoolContract.totalSupply())).to.equal(convertUnit("49.9", 18))
+            expect(totalSupply.sub(await LpPoolContract.totalSupply())).to.equal(convertUnit("50", 18))
 
             statusCache = {
                 USDC,
@@ -196,7 +190,7 @@ describe("LP Pool", function () {
     })
 
     describe("Revert testing", async function () {
-        it("Revert testing", async function () {
+        it("Permission testing", async function () {
             const {
                 USDC,
                 PriceOracleContract,
@@ -206,17 +200,11 @@ describe("LP Pool", function () {
                 FeePotContract,
                 owner, addr1, addr2, addr3
             } =
-                statusCache;
+                await loadFixture(deployFixture);
 
-            statusCache = {
-                USDC,
-                PriceOracleContract,
-                FactoryContract,
-                LpPoolContract,
-                PositionControllerContract,
-                FeePotContract,
-                owner, addr1, addr2, addr3
-            }
+            await expect(LpPoolContract.connect(addr1).addLiquidity(addr1.address, convertUnit("100", 18), 0)).to.be.revertedWith("Not allowed to add liquidity as a trader")
+            await LpPoolContract.connect(addr1).addLiquidity(addr1.address, convertUnit("100", 18), 1)
+            await expect(LpPoolContract.connect(addr1).removeLiquidity(addr1.address, convertUnit("10", 18), 0)).to.be.revertedWith("Not allowed to remove liquidity as a trader")
         });
     })
 });

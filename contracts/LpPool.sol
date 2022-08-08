@@ -136,7 +136,7 @@ contract LpPool is LpToken, ILpPool {
         if (flag == exchangerCall.yes) {
             require(
                 msg.sender == IFactory(factory).getPositionController(),
-                "Not allowed to add liquidity as a trader"
+                "Not allowed to remove liquidity as a trader"
             );
         }
 
