@@ -56,9 +56,6 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             factoryContract.getPriceOracle()
         );
 
-        USDC.transferFrom(msg.sender, address(this), liquidity);
-        USDC.approve(address(poolContract), liquidity);
-
         uint256 margin = poolContract.addLiquidity(
             msg.sender,
             liquidity,

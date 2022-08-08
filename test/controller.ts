@@ -20,8 +20,8 @@ describe("Position Controller", function () {
         await PriceOracleContract.addMarket("NFT2");
         await PriceOracleContract.addMarket("NFT3");
         await PriceOracleContract.setPriceOracle(0, 1000 * 10 ** 9);
-        await PriceOracleContract.setPriceOracle(0, 2000 * 10 ** 9);
-        await PriceOracleContract.setPriceOracle(0, 3000 * 10 ** 9);
+        await PriceOracleContract.setPriceOracle(1, 2000 * 10 ** 9);
+        await PriceOracleContract.setPriceOracle(2, 3000 * 10 ** 9);
         console.log("check");
         const Factory = await ethers.getContractFactory("Factory");
         const FactoryContract = await Factory.deploy();
@@ -52,7 +52,10 @@ describe("Position Controller", function () {
 
         const FeePot = await ethers.getContractFactory("FeePot");
         const FeePotContract = await FeePot.attach(feePotAddress);
-
+        await USDC.approve(
+            lpPoolAddress,
+            ethers.utils.parseUnits("100000000", 18)
+        );
         return {
             USDC,
             PriceOracleContract,
