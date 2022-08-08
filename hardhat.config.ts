@@ -10,7 +10,7 @@ const config: HardhatUserConfig = {
       forking: {
         url: `${process.env.NODE_URL}`,
       },
-      allowUnlimitedContractSize :true,
+      allowUnlimitedContractSize: true,
     }
   }
 };
