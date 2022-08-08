@@ -22,6 +22,7 @@ contract LpPool is LpToken, ILpPool {
     address public override underlyingToken;
 
     uint80 public constant feeTierDenom = 10000;
+    uint80 public constant initialExachangeRate = 1; // GD -> USD
     uint80 public MINIMUM_UNDERLYING;
     uint80 defaultExchangeFeeTier; // bp
     uint80 defaultLpFeeTier; // bp
@@ -104,9 +105,9 @@ contract LpPool is LpToken, ILpPool {
         );
         uint256 potentialSupply = getPotentialSupply();
         // delta Collateral / Collateral locked * GD supply (decimals is GD's decimals)
-        uint256 tokenToMint = amountToExchange.mul(potentialSupply).div(
-            collateralLocked
-        );
+        uint256 tokenToMint = (potentialSupply == 0 || collateralLocked == 0)
+            ? amountToExchange.div(initialExachangeRate)
+            : amountToExchange.mul(potentialSupply).div(collateralLocked);
 
         // mint token
         _mint(msg.sender, tokenToMint);
