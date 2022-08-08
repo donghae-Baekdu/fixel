@@ -7,10 +7,10 @@ describe("Position Controller", function () {
     async function deployFixture() {
         const [owner] = await ethers.getSigners();
 
-        const Token = await ethers.getContractFactory("ERC20");
-        const USDC = await Token.deploy("USDC", "USDC");
+        const Token = await ethers.getContractFactory("Token");
+        const USDC = await Token.deploy();
         await USDC.deployed();
-        //await USDC.mint(owner.address, ethers.utils.parseUnits("10000000", 18));
+        await USDC.mint(owner.address, ethers.utils.parseUnits("10000000", 18));
         console.log("check");
         const PriceOracle = await ethers.getContractFactory("PriceOracle");
         const PriceOracleContract = await PriceOracle.deploy({});
