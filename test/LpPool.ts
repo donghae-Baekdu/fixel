@@ -52,6 +52,8 @@ describe("LP Pool", function () {
 
         const LpPool = await ethers.getContractFactory("LpPool");
         const LpPoolContract = await LpPool.attach(lpPoolAddress);
+        await LpPoolContract.setFeeTier(30, 0);
+        await LpPoolContract.setFeeTier(10, 1);
 
         const FeePot = await ethers.getContractFactory("FeePot");
         const FeePotContract = await FeePot.attach(feePotAddress);
@@ -62,6 +64,11 @@ describe("LP Pool", function () {
         const PositionControllerContract = await PositionController.attach(
             positionControllerAddress
         );
+
+        await USDC.connect(owner).approve(LpPoolContract.address, convertUnit("100000000", 18));
+        await USDC.connect(addr1).approve(LpPoolContract.address, convertUnit("100000000", 18));
+        await USDC.connect(addr2).approve(LpPoolContract.address, convertUnit("100000000", 18));
+        await USDC.connect(addr3).approve(LpPoolContract.address, convertUnit("100000000", 18));
 
         await FactoryContract.addMarket("NFT1", 20 * 10 ** 2, 500);
         await FactoryContract.addMarket("NFT2", 20 * 10 ** 2, 500);
@@ -78,33 +85,138 @@ describe("LP Pool", function () {
         };
     }
 
-    it("Add Liquidity", async function () {
-        const {
-            USDC,
-            PriceOracleContract,
-            FactoryContract,
-            LpPoolContract,
-            PositionControllerContract,
-            FeePotContract,
-            owner, addr1, addr2, addr3
-        } =
-            await loadFixture(deployFixture);
+    function convertUnit(value: string, decimals: number) {
+        return ethers.utils.parseUnits(value, decimals);
+    }
 
+    let statusCache: any;
 
-    });
+    describe("Add Liquidity", async function () {
+        it("Initial Add Liquidity", async function () {
+            const {
+                USDC,
+                PriceOracleContract,
+                FactoryContract,
+                LpPoolContract,
+                PositionControllerContract,
+                FeePotContract,
+                owner, addr1, addr2, addr3
+            } =
+                await loadFixture(deployFixture);
 
-    it("Remove Liquidity", async function () {
-        const {
-            USDC,
-            PriceOracleContract,
-            FactoryContract,
-            LpPoolContract,
-            PositionControllerContract,
-            FeePotContract,
-            owner, addr1, addr2, addr3
-        } =
-            await loadFixture(deployFixture);
+            await LpPoolContract.connect(addr1).addLiquidity(addr1.address, convertUnit("100", 18), 1)
 
+            expect(await LpPoolContract.balanceOf(addr1.address)).to.equal(convertUnit("99.9", 18))
+            expect(await USDC.balanceOf(addr1.address)).to.equal(convertUnit("999900", 18))
+            expect(await USDC.balanceOf(LpPoolContract.address)).to.equal(convertUnit("99.97", 18))
 
-    });
+            statusCache = {
+                USDC,
+                PriceOracleContract,
+                FactoryContract,
+                LpPoolContract,
+                PositionControllerContract,
+                FeePotContract,
+                owner, addr1, addr2, addr3
+            }
+        });
+
+        it("Additional Add Liquidity", async function () {
+            const {
+                USDC,
+                PriceOracleContract,
+                FactoryContract,
+                LpPoolContract,
+                PositionControllerContract,
+                FeePotContract,
+                owner, addr1, addr2, addr3
+            } =
+                statusCache;
+
+            await LpPoolContract.connect(addr2).addLiquidity(addr2.address, convertUnit("100", 18), 1)
+            expect(await LpPoolContract.balanceOf(addr2.address)).to.equal(convertUnit("99.9", 18).mul(convertUnit("99.9", 18)).div(convertUnit("99.97", 18)))
+            expect(await USDC.balanceOf(addr2.address)).to.equal(convertUnit("999900", 18))
+            expect(await USDC.balanceOf(LpPoolContract.address)).to.equal(convertUnit("99.97", 18).mul("2"))
+
+            statusCache = {
+                USDC,
+                PriceOracleContract,
+                FactoryContract,
+                LpPoolContract,
+                PositionControllerContract,
+                FeePotContract,
+                owner, addr1, addr2, addr3
+            }
+        });
+    })
+
+    describe("Remove Liquidity", async function () {
+        it("Remove Liquidity", async function () {
+            const {
+                USDC,
+                PriceOracleContract,
+                FactoryContract,
+                LpPoolContract,
+                PositionControllerContract,
+                FeePotContract,
+                owner, addr1, addr2, addr3
+            } =
+                statusCache;
+
+            const amountToBurn = convertUnit("50", 18)
+            const addr1PrevBalance = await USDC.balanceOf(addr1.address)
+            const totalSupply = await LpPoolContract.totalSupply()
+            const lockedUSDC = await USDC.balanceOf(LpPoolContract.address)
+            const exchangedUSDC = amountToBurn.mul(lockedUSDC).div(totalSupply)
+            const withdrewUSDC = exchangedUSDC.mul("999").div("1000")
+            const deltaLocked = exchangedUSDC.sub(exchangedUSDC.mul("7").div("10000"))
+
+            console.log(deltaLocked)
+
+            await LpPoolContract.connect(addr1).removeLiquidity(addr1.address, convertUnit("50", 18), 1)
+            console.log("1 HI")
+            expect(await LpPoolContract.balanceOf(addr1.address)).to.equal(convertUnit("49.9", 18))
+            console.log("2 HI")
+            expect((await USDC.balanceOf(addr1.address)).sub(addr1PrevBalance)).to.equal(withdrewUSDC)
+            console.log("3 HI")
+            expect(lockedUSDC.sub(await USDC.balanceOf(LpPoolContract.address))).to.equal(deltaLocked)
+            console.log("4 HI")
+            expect(totalSupply.sub(await LpPoolContract.totalSupply())).to.equal(convertUnit("49.9", 18))
+
+            statusCache = {
+                USDC,
+                PriceOracleContract,
+                FactoryContract,
+                LpPoolContract,
+                PositionControllerContract,
+                FeePotContract,
+                owner, addr1, addr2, addr3
+            }
+        });
+    })
+
+    describe("Revert testing", async function () {
+        it("Revert testing", async function () {
+            const {
+                USDC,
+                PriceOracleContract,
+                FactoryContract,
+                LpPoolContract,
+                PositionControllerContract,
+                FeePotContract,
+                owner, addr1, addr2, addr3
+            } =
+                statusCache;
+
+            statusCache = {
+                USDC,
+                PriceOracleContract,
+                FactoryContract,
+                LpPoolContract,
+                PositionControllerContract,
+                FeePotContract,
+                owner, addr1, addr2, addr3
+            }
+        });
+    })
 });

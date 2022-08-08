@@ -11,6 +11,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import "hardhat/console.sol";
+
 contract LpPool is LpToken, ILpPool {
     using SafeMath for uint256;
     using SafeMath for uint80;
@@ -23,6 +25,7 @@ contract LpPool is LpToken, ILpPool {
 
     uint80 public constant feeTierDenom = 10000;
     uint80 public constant initialExachangeRate = 1; // GD -> USD
+    uint80 public constant toFeePotProportion = 3000;
     uint80 public MINIMUM_UNDERLYING;
     uint80 defaultExchangeFeeTier; // bp
     uint80 defaultLpFeeTier; // bp
@@ -83,7 +86,13 @@ contract LpPool is LpToken, ILpPool {
 
         uint256 totalFeeQty = depositQty.sub(amountToExchange);
         uint256 toFeePotQty = totalFeeQty.sub(
-            totalFeeQty.mul(feeTierDenom.sub(feeTier)).div(feeTierDenom)
+            totalFeeQty.mul(feeTierDenom.sub(toFeePotProportion)).div(
+                feeTierDenom
+            )
+        );
+
+        uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
+            address(this)
         );
 
         // transfer from user to lp pool
@@ -93,17 +102,14 @@ contract LpPool is LpToken, ILpPool {
             depositQty
         );
         // transfer from lp pool to fee pot
-        IERC20(underlyingToken).safeTransferFrom(
-            address(this),
+        IERC20(underlyingToken).transfer(
             address(IFactory(factory).getFeePot()),
             toFeePotQty
         );
 
         // get number of token to mint
-        uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
-            address(this)
-        );
         uint256 potentialSupply = getPotentialSupply();
+
         // delta Collateral / Collateral locked * GD supply (decimals is GD's decimals)
         uint256 tokenToMint = (potentialSupply == 0 || collateralLocked == 0)
             ? amountToExchange.div(initialExachangeRate)
@@ -137,7 +143,7 @@ contract LpPool is LpToken, ILpPool {
         // amount to transfer is less than balance
         if (flag == exchangerCall.no) {
             require(
-                IERC20(this).balanceOf(user) >= lpTokenQty,
+                IERC20(address(this)).balanceOf(user) >= lpTokenQty,
                 "Not Enough Balance To Withdraw"
             );
         }
@@ -163,22 +169,18 @@ contract LpPool is LpToken, ILpPool {
 
         uint256 totalFeeQty = amountFromExchange.sub(amountToWithdraw);
         uint256 toFeePotQty = totalFeeQty.sub(
-            totalFeeQty.mul(feeTierDenom.sub(feeTier)).div(feeTierDenom)
+            totalFeeQty.mul(feeTierDenom.sub(toFeePotProportion)).div(
+                feeTierDenom
+            )
         );
 
         // transfer from pool to user
-        IERC20(underlyingToken).safeTransferFrom(
-            address(this),
-            user,
-            amountToWithdraw
-        );
+        IERC20(underlyingToken).transfer(user, amountToWithdraw);
         // transfer from lp pool to fee pot
-        IERC20(underlyingToken).safeTransferFrom(
-            address(this),
+        IERC20(underlyingToken).transfer(
             address(IFactory(factory).getFeePot()),
             toFeePotQty
         );
-
         // burn lp token
         _burn(msg.sender, lpTokenQty);
 
