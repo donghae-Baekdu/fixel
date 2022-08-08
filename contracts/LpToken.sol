@@ -15,6 +15,7 @@ contract LpToken is IERC20 {
     mapping(address => uint256) public nonces;
 
     function _mint(address to, uint256 value) internal {
+
         // TODO requiremnet - set admin contract
         totalSupply = totalSupply.add(value);
         balanceOf[to] = balanceOf[to].add(value);

@@ -18,6 +18,7 @@ contract LpPool is LpToken, ILpPool {
 
     address owner;
     address factory;
+
     address public override underlyingToken;
 
     uint80 public constant feeTierDenom = 10000;
@@ -43,7 +44,7 @@ contract LpPool is LpToken, ILpPool {
         );
         _;
     }
-    
+
     function addLiquidity(
         address user,
         uint256 depositQty,

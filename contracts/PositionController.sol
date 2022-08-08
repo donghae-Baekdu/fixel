@@ -16,6 +16,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
 
     address GD_TOKEN_ADDRESS = address(0);
     address USDC_TOKEN_ADDRESS = address(0);
+
     IERC20 USDC;// = IERC20(USDC_TOKEN_ADDRESS);
     IERC20 GD;// = IERC20(GD_TOKEN_ADDRESS);
 
