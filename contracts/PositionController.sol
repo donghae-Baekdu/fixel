@@ -7,6 +7,7 @@ import "./interfaces/IPriceOracle.sol";
 import "./interfaces/IFactory.sol";
 import "./interfaces/ILpPool.sol";
 import "./interfaces/IPositionController.sol";
+import "hardhat/console.sol";
 
 contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     using SafeMath for uint256;
@@ -27,8 +28,8 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     uint80 marketCount;
 
     mapping(uint256 => address) private _tokenApprovals;
-    mapping(uint256 => Position) positions;
-    mapping(uint256 => MarketStatus) marketStatus;
+    mapping(uint256 => Position) public positions;
+    mapping(uint256 => MarketStatus) public marketStatus;
 
     IFactory factoryContract;
 
@@ -97,8 +98,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     function closePosition(uint80 marketId, uint256 tokenId) external {
         require(ownerOf(tokenId) == msg.sender, "Invalid Token Id");
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
-        uint256 returnAmount = _closePosition(marketId, tokenId);
-        USDC.transfer(ownerOf(tokenId), returnAmount);
+        _closePosition(marketId, tokenId);
     }
 
     function liquidate(uint80 marketId, uint256 tokenId) external {
@@ -235,7 +235,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             lpPool.burn(address(this), burnAmount);
             refundGd = positions[tokenId].margin.sub(burnAmount);
         }
-
+        console.log(refundGd);
         marketStatus[marketId].margin = marketStatus[marketId].margin.sub(
             positions[tokenId].margin
         );
