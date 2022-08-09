@@ -39,9 +39,19 @@ interface ILpPool {
         view
         returns (uint80 _fee, uint80 _feeTierDenom);
 
+    function getAmountToWithdraw(uint256 lpTokenQty, exchangerCall flag)
+        external
+        view
+        returns (uint256 _amountToWithdraw, uint256 _totalFee);
+
+    function getAmountToMint(uint256 depositQty, exchangerCall flag)
+        external
+        view
+        returns (uint256 _amountToMint, uint256 _totalFee);
+
     function mint(address to, uint256 value) external;
 
     function burn(address to, uint256 value) external;
 
-    function underlyingToken() external view returns(address);
+    function underlyingToken() external view returns (address);
 }
