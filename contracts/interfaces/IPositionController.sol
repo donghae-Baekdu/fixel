@@ -79,7 +79,7 @@ interface IPositionController is IERC721Enumerable {
         Side side
     ) external;
 
-    function closePosition(uint80 marketId, uint256 tokenId) external;
+    function closePosition(uint80 marketId, uint256 tokenId) external returns(uint256);
 
     function liquidate(uint80 marketId, uint256 tokenId) external;
     
