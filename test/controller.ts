@@ -1,4 +1,3 @@
-/*
 import { ethers } from "hardhat";
 import { BigNumber } from "bignumber.js";
 const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
@@ -95,7 +94,7 @@ describe("Position Controller", async function () {
                 0,
                 ethers.utils.parseUnits("1100", 9)
             );
-            console.log(await fixture.PositionControllerContract.getTotalUnrealizedPnl())
+
             await fixture.PositionControllerContract.openPosition(
                 0,
                 ethers.utils.parseUnits("10000", 18),
@@ -107,24 +106,41 @@ describe("Position Controller", async function () {
                 1
             );
 
-            expect(position.margin).equal(
-                ethers.utils.parseUnits("15000", 18)
+            expect(position.margin).equal(ethers.utils.parseUnits("15000", 18));
+            await fixture.PositionControllerContract.closePosition(0, 1);
+        });
+
+        it("open position after other position get loss", async () => {
+            await fixture.PriceOracleContract.setPriceOracle(
+                0,
+                ethers.utils.parseUnits("900", 9)
             );
 
-            console.log(
-                new BigNumber(position.margin.toString()).dividedBy(10 ** 18)
+            await fixture.PositionControllerContract.openPosition(
+                0,
+                ethers.utils.parseUnits("10000", 18),
+                5 * 100,
+                0
             );
+
+            const position = await fixture.PositionControllerContract.positions(
+                2
+            );
+            console.log(position);
+            expect(position.margin).equal(ethers.utils.parseUnits("5000", 18));
         });
     });
 
     describe("close position", async () => {
-        it("closePosition", async function () {
-            await fixture.PositionControllerContract.closePosition(0, 0);
+        it("close position case1", async function () {
+            const res = await fixture.PositionControllerContract.closePosition(
+                0,
+                0
+            );
             const position = await fixture.PositionControllerContract.positions(
                 0
             );
-            console.log(position);
+            console.log(position, res);
         });
     });
 });
-*/

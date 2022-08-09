@@ -95,10 +95,12 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         );
     }
 
-    function closePosition(uint80 marketId, uint256 tokenId) external {
+    function closePosition(uint80 marketId, uint256 tokenId) external returns (uint256) {
         require(ownerOf(tokenId) == msg.sender, "Invalid Token Id");
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
-        _closePosition(marketId, tokenId);
+        uint256 receiveAmount = _closePosition(marketId, tokenId);
+        console.log(receiveAmount);
+        return receiveAmount;
     }
 
     function liquidate(uint80 marketId, uint256 tokenId) external {
@@ -216,29 +218,22 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         }
 
         uint256 refundGd;
-
+      
         ILpPool lpPool = ILpPool(factoryContract.getLpPool());
 
         if (isProfit) {
-            marketStatus[marketId].unrealizedPnl = marketStatus[marketId]
-                .unrealizedPnl
-                .sub(pnl);
+            (marketStatus[marketId].pnlSign, marketStatus[marketId].unrealizedPnl) = calculateUnsignedSum(marketStatus[marketId].pnlSign,marketStatus[marketId].unrealizedPnl,Sign.NEG, pnl);
             lpPool.mint(address(this), pnl);
             refundGd = positions[tokenId].margin.add(pnl);
         } else {
-            marketStatus[marketId].unrealizedPnl = marketStatus[marketId]
-                .unrealizedPnl
-                .add(pnl);
+            (marketStatus[marketId].pnlSign, marketStatus[marketId].unrealizedPnl) = calculateUnsignedSum(marketStatus[marketId].pnlSign,marketStatus[marketId].unrealizedPnl,Sign.POS, pnl);
             uint256 burnAmount = pnl > positions[marketId].margin
                 ? positions[marketId].margin
                 : pnl;
             lpPool.burn(address(this), burnAmount);
             refundGd = positions[tokenId].margin.sub(burnAmount);
         }
-        console.log(refundGd);
-        marketStatus[marketId].margin = marketStatus[marketId].margin.sub(
-            positions[tokenId].margin
-        );
+      
         positions[tokenId].status = Status.CLOSE;
 
         uint256 receiveAmount = lpPool.removeLiquidity(
@@ -281,6 +276,9 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
                 ].totalShortPositionFactor.add(factor);
             }
         } else if (tradeType == TradeType.CLOSE) {
+            marketStatus[marketId].margin = marketStatus[marketId].margin.sub(
+                margin
+            );
             if (side == Side.LONG) {
                 marketStatus[marketId].totalLongPositionFactor = marketStatus[
                     marketId
@@ -459,6 +457,18 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
                         pnl = marketStatus[marketId].unrealizedPnl.sub(loss);
                     }
                 }
+            }
+        }
+    }
+
+    function calculateUnsignedSum(Sign signA, uint256 numA, Sign signB, uint256 numB) internal returns(Sign resSign, uint256 resNum){
+        if(signA == signB){
+            return (signA, numA.add(numB));
+        } else{
+            if(numA > numB){
+                return (signA, numA.sub(numB));
+            } else {
+                return (signB, numB.sub(numA));
             }
         }
     }
