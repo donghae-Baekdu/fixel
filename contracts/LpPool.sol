@@ -74,25 +74,9 @@ contract LpPool is LpToken, ILpPool {
             );
         }
 
-        uint80 feeTier = flag == exchangerCall.yes
-            ? defaultExchangeFeeTier
-            : defaultLpFeeTier;
-
-        // charge fee (send 30% to fee pot)
-        uint256 amountToExchange = depositQty
-            .mul(feeTierDenom.sub(feeTier))
-            .div(feeTierDenom);
-        // get lp token price
-
-        uint256 totalFeeQty = depositQty.sub(amountToExchange);
-        uint256 toFeePotQty = totalFeeQty.sub(
-            totalFeeQty.mul(feeTierDenom.sub(toFeePotProportion)).div(
-                feeTierDenom
-            )
-        );
-
-        uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
-            address(this)
+        (uint256 amountToMint, uint256 totalFeeQty) = getAmountToMint(
+            depositQty,
+            flag
         );
 
         // transfer from user to lp pool
@@ -101,26 +85,52 @@ contract LpPool is LpToken, ILpPool {
             address(this),
             depositQty
         );
+
+        uint256 toFeePotQty = totalFeeQty.sub(
+            totalFeeQty.mul(feeTierDenom.sub(toFeePotProportion)).div(
+                feeTierDenom
+            )
+        );
+
         // transfer from lp pool to fee pot
         IERC20(underlyingToken).transfer(
             address(IFactory(factory).getFeePot()),
             toFeePotQty
         );
 
-        // get number of token to mint
+        // mint token
+        _mint(msg.sender, amountToMint);
+
+        _lpTokenQty = amountToMint;
+
+        emit LiquidityAdded(user, depositQty, amountToMint);
+    }
+
+    function getAmountToMint(uint256 depositQty, exchangerCall flag)
+        public
+        view
+        returns (uint256 _amountToMint, uint256 _totalFee)
+    {
+        uint80 feeTier = flag == exchangerCall.yes
+            ? defaultExchangeFeeTier
+            : defaultLpFeeTier;
+
+        // charge fee (send 30% to fee pot)
+        uint256 amountToExchange = depositQty
+            .mul(feeTierDenom.sub(feeTier))
+            .div(feeTierDenom);
+
+        _totalFee = depositQty.sub(amountToExchange);
+
         uint256 potentialSupply = getPotentialSupply();
+        uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
+            address(this)
+        );
 
         // delta Collateral / Collateral locked * GD supply (decimals is GD's decimals)
-        uint256 tokenToMint = (potentialSupply == 0 || collateralLocked == 0)
+        _amountToMint = (potentialSupply == 0 || collateralLocked == 0)
             ? amountToExchange.div(initialExachangeRate)
             : amountToExchange.mul(potentialSupply).div(collateralLocked);
-
-        // mint token
-        _mint(msg.sender, tokenToMint);
-
-        _lpTokenQty = tokenToMint;
-
-        emit LiquidityAdded(user, depositQty, tokenToMint);
     }
 
     function removeLiquidity(
@@ -148,26 +158,11 @@ contract LpPool is LpToken, ILpPool {
             );
         }
 
-        uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
-            address(this)
+        (uint256 amountToWithdraw, uint256 totalFeeQty) = getAmountToWithdraw(
+            lpTokenQty,
+            flag
         );
 
-        // get lp token price
-        uint256 potentialSupply = getPotentialSupply();
-        // delta GD / GD supply * Collateral locked (decimals is USDC's decimals)
-        uint256 amountFromExchange = lpTokenQty.mul(collateralLocked).div(
-            potentialSupply
-        );
-
-        uint80 feeTier = flag == exchangerCall.yes
-            ? defaultExchangeFeeTier
-            : defaultLpFeeTier;
-
-        uint256 amountToWithdraw = amountFromExchange
-            .mul(feeTierDenom.sub(feeTier))
-            .div(feeTierDenom);
-
-        uint256 totalFeeQty = amountFromExchange.sub(amountToWithdraw);
         uint256 toFeePotQty = totalFeeQty.sub(
             totalFeeQty.mul(feeTierDenom.sub(toFeePotProportion)).div(
                 feeTierDenom
@@ -187,6 +182,33 @@ contract LpPool is LpToken, ILpPool {
         _withdrawQty = amountToWithdraw;
 
         emit LiquidityRemoved(user, amountToWithdraw, lpTokenQty);
+    }
+
+    function getAmountToWithdraw(uint256 lpTokenQty, exchangerCall flag)
+        public
+        view
+        returns (uint256 _amountToWithdraw, uint256 _totalFee)
+    {
+        uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
+            address(this)
+        );
+
+        // get lp token price
+        uint256 potentialSupply = getPotentialSupply();
+        // delta GD / GD supply * Collateral locked (decimals is USDC's decimals)
+        uint256 amountFromExchange = lpTokenQty.mul(collateralLocked).div(
+            potentialSupply
+        );
+
+        uint80 feeTier = flag == exchangerCall.yes
+            ? defaultExchangeFeeTier
+            : defaultLpFeeTier;
+
+        _amountToWithdraw = amountFromExchange
+            .mul(feeTierDenom.sub(feeTier))
+            .div(feeTierDenom);
+
+        _totalFee = amountFromExchange.sub(_amountToWithdraw);
     }
 
     function getPotentialSupply() public view returns (uint256 _qty) {
