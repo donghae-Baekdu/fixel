@@ -73,6 +73,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             leverage,
             margin,
             price,
+            uint256(0),
             side,
             Status.OPEN
         );
@@ -235,6 +236,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         }
       
         positions[tokenId].status = Status.CLOSE;
+        positions[tokenId].closePrice = marketStatus[marketId].lastPrice;
 
         uint256 receiveAmount = lpPool.removeLiquidity(
             ownerOf(tokenId),

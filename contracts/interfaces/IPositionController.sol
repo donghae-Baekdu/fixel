@@ -28,6 +28,7 @@ interface IPositionController is IERC721Enumerable {
         uint32 leverage;
         uint256 margin;
         uint256 price;
+        uint256 closePrice;
         Side side;
         Status status;
     }
