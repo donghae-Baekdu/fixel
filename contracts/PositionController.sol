@@ -82,7 +82,6 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             Status.OPEN
         );
         
-        _addTokenToUserPositions(msg.sender, marketId, tokenId);
         updateMarketStatusAfterTrade(
             marketId,
             side,
@@ -242,7 +241,6 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
       
         positions[tokenId].status = Status.CLOSE;
         positions[tokenId].closePrice = marketStatus[marketId].lastPrice;
-        _removeTokenFromUserPositions(ownerOf(tokenId),marketId, tokenId);
 
         uint256 receiveAmount = lpPool.removeLiquidity(
             ownerOf(tokenId),
@@ -515,8 +513,8 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         address to,
         uint256 tokenId
     ) internal override {
-        if(from == address(0) || positions[tokenId].status == Status.CLOSE){
-            return;
+        if(from == address(0)){
+            _addTokenToUserPositions(to, positions[tokenId].marketId, tokenId);
         } else if(to == address(0)){
             _removeTokenFromUserPositions(from, positions[tokenId].marketId, tokenId);
         } else {

@@ -172,6 +172,13 @@ describe("Position Controller", async function () {
             );
             await fixture.PositionControllerContract.closePosition(0, 3);
             await fixture.PositionControllerContract.closePosition(0, 5);
+            await fixture.PositionControllerContract.transferFrom(
+                (
+                    await ethers.getSigners()
+                )[0].address,
+                "0x6055E8c2ccA5c65181194BA83Ad1A3268849f1E0",
+                2
+            );
             const index =
                 await fixture.PositionControllerContract.getOwnedTokensIndex(
                     (
@@ -180,6 +187,13 @@ describe("Position Controller", async function () {
                     0
                 );
             console.log(index);
+            const index2 =
+                await fixture.PositionControllerContract.getOwnedTokensIndex(
+                    "0x6055E8c2ccA5c65181194BA83Ad1A3268849f1E0",
+                    0
+                );
+            console.log(index2);
+            
         });
     });
 });
