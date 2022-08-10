@@ -29,6 +29,10 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
 
     mapping(uint256 => address) private _tokenApprovals;
     mapping(uint256 => Position) public positions;
+    mapping(address => mapping (uint80 => uint256[])) public userMarketPositions;
+    //user -> tokenId -> index
+    mapping(address => mapping(uint256 => uint256)) public userMarketPositionsIndex;
+
     mapping(uint256 => MarketStatus) public marketStatus;
 
     IFactory factoryContract;
@@ -77,7 +81,8 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             side,
             Status.OPEN
         );
-
+        
+        _addTokenToUserPositions(msg.sender, marketId, tokenId);
         updateMarketStatusAfterTrade(
             marketId,
             side,
@@ -237,6 +242,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
       
         positions[tokenId].status = Status.CLOSE;
         positions[tokenId].closePrice = marketStatus[marketId].lastPrice;
+        _removeTokenFromUserPositions(ownerOf(tokenId),marketId, tokenId);
 
         uint256 receiveAmount = lpPool.removeLiquidity(
             ownerOf(tokenId),
@@ -462,6 +468,10 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             }
         }
     }
+    
+    function getOwnedTokensIndex(address user, uint80 marketId) view external returns (uint256[] memory) {
+        return userMarketPositions[user][marketId];
+    }
 
     function calculateUnsignedSum(Sign signA, uint256 numA, Sign signB, uint256 numB) internal returns(Sign resSign, uint256 resNum){
         if(signA == signB){
@@ -472,6 +482,46 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             } else {
                 return (signB, numB.sub(numA));
             }
+        }
+    }
+
+    function _addTokenToUserPositions(address user, uint80 marketId, uint256 tokenId) private {
+        userMarketPositionsIndex[user][tokenId] = userMarketPositions[user][marketId].length;
+        userMarketPositions[user][marketId].push(tokenId);
+    }
+
+    function _removeTokenFromUserPositions(address user, uint80 marketId, uint256 tokenId) private {
+        // To prevent a gap in the tokens array, we store the last token in the index of the token to delete, and
+        // then delete the last slot (swap and pop).
+
+        uint256 lastTokenIndex = userMarketPositions[user][marketId].length - 1;
+        uint256 tokenIndex = userMarketPositionsIndex[user][tokenId];
+
+        // When the token to delete is the last token, the swap operation is unnecessary. However, since this occurs so
+        // rarely (when the last minted token is burnt) that we still do the swap here to avoid the gas cost of adding
+        // an 'if' statement (like in _removeTokenFromOwnerEnumeration)
+        uint256 lastTokenId = userMarketPositions[user][marketId][lastTokenIndex];
+
+        userMarketPositions[user][marketId][tokenIndex] = lastTokenId; // Move the last token to the slot of the to-delete token
+        userMarketPositionsIndex[user][lastTokenId] = tokenIndex; // Update the moved token's index
+
+        // This also deletes the contents at the last position of the array
+        delete userMarketPositionsIndex[user][tokenId];
+        userMarketPositions[user][marketId].pop();
+    }
+    
+    function _afterTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal override {
+        if(from == address(0) || positions[tokenId].status == Status.CLOSE){
+            return;
+        } else if(to == address(0)){
+            _removeTokenFromUserPositions(from, positions[tokenId].marketId, tokenId);
+        } else {
+            _addTokenToUserPositions(to, positions[tokenId].marketId, tokenId);
+            _removeTokenFromUserPositions(from, positions[tokenId].marketId, tokenId);
         }
     }
 }

@@ -143,4 +143,43 @@ describe("Position Controller", async function () {
             console.log(position, res);
         });
     });
+
+    describe("utils", async () => {
+        it("get positions by marketId", async function () {
+            await fixture.PositionControllerContract.openPosition(
+                0,
+                ethers.utils.parseUnits("10000", 18),
+                5 * 100,
+                0
+            );
+            await fixture.PositionControllerContract.openPosition(
+                0,
+                ethers.utils.parseUnits("10000", 18),
+                5 * 100,
+                0
+            );
+            await fixture.PositionControllerContract.openPosition(
+                0,
+                ethers.utils.parseUnits("10000", 18),
+                5 * 100,
+                0
+            );
+            await fixture.PositionControllerContract.openPosition(
+                0,
+                ethers.utils.parseUnits("10000", 18),
+                5 * 100,
+                0
+            );
+            await fixture.PositionControllerContract.closePosition(0, 3);
+            await fixture.PositionControllerContract.closePosition(0, 5);
+            const index =
+                await fixture.PositionControllerContract.getOwnedTokensIndex(
+                    (
+                        await ethers.getSigners()
+                    )[0].address,
+                    0
+                );
+            console.log(index);
+        });
+    });
 });

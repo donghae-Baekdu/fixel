@@ -106,7 +106,9 @@ interface IPositionController is IERC721Enumerable {
             uint256 pnl,
             uint256 currentPrice
         );
-    
+        
+    function getOwnedTokensIndex(address user, uint80 marketId) view external returns (uint256[] memory);
+
     function addMarket(
         string memory name,
         uint32 _maxLeverage,
