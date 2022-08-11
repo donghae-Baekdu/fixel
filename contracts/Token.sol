@@ -2,13 +2,13 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract Token is IERC20 {
+contract USDC is IERC20 {
     uint public totalSupply;
     mapping(address => uint) public balanceOf;
     mapping(address => mapping(address => uint)) public allowance;
-    string public name = "Solidity by Example";
-    string public symbol = "SOLBYEX";
-    uint8 public decimals = 18;
+    string public name = "USDC Example Code";
+    string public symbol = "USDC-TEST";
+    uint8 public decimals = 6;
 
     function transfer(address recipient, uint amount) external returns (bool) {
         balanceOf[msg.sender] = balanceOf[msg.sender] - amount;

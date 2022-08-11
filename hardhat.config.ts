@@ -9,8 +9,13 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       forking: {
-        url: `${process.env.NODE_URL}`,
+        url: `${process.env.HARDHAT_NODE_URL}`,
       },
+      allowUnlimitedContractSize: true,
+    },
+    mumbai: {
+      url: `${process.env.POLYGON_MUMBAI_NODE_URL}`,
+      accounts: [process.env.DEPLOYER_PRIVATE_KEY!],
       allowUnlimitedContractSize: true,
     }
   }

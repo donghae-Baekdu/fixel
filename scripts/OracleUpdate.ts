@@ -3,7 +3,7 @@ import { ethers } from "hardhat";
 async function main() {
     //const [owner] = await ethers.getSigners();
 
-    const Token = await ethers.getContractFactory("Token");
+    const Token = await ethers.getContractFactory("USDC");
     const USDC = await Token.deploy();
     await USDC.deployed();
     //await USDC.mint(owner.address, ethers.utils.parseUnits("10000000", 18));
@@ -49,7 +49,7 @@ async function main() {
     const FeePot = await ethers.getContractFactory("FeePot");
     const FeePotContract = await FeePot.attach(feePotAddress);
     //await USDC.approve(lpPoolAddress, ethers.utils.parseUnits("100000000", 18));
-    console.log(USDC.address, PriceOracleContract.address, FactoryContract.address, LpPoolContract.address,PositionControllerContract.address, FeePotContract.address)
+    console.log(USDC.address, PriceOracleContract.address, FactoryContract.address, LpPoolContract.address, PositionControllerContract.address, FeePotContract.address)
     return {
         USDC,
         PriceOracleContract,

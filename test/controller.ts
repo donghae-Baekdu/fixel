@@ -6,7 +6,7 @@ const { expect } = require("chai");
 async function deployFixture() {
     const [owner] = await ethers.getSigners();
 
-    const Token = await ethers.getContractFactory("Token");
+    const Token = await ethers.getContractFactory("USDC");
     const USDC = await Token.deploy();
     await USDC.deployed();
     await USDC.mint(owner.address, ethers.utils.parseUnits("10000000", 18));
@@ -193,7 +193,7 @@ describe("Position Controller", async function () {
                     0
                 );
             console.log(index2);
-            
+
         });
     });
 });

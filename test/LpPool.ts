@@ -7,7 +7,7 @@ describe("LP Pool", function () {
     async function deployFixture() {
         const [owner, addr1, addr2, addr3] = await ethers.getSigners();
 
-        const Token = await ethers.getContractFactory("Token");
+        const Token = await ethers.getContractFactory("USDC");
         const USDC = await Token.deploy();
         await USDC.deployed();
         await USDC.mint(owner.address, ethers.utils.parseUnits("1000000", 18));
