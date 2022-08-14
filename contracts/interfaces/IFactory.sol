@@ -11,9 +11,9 @@ interface IFactory {
 
     event FeePotCreated(address poolAddress, address owner);
 
-    function getPositionController() external view returns (address);
+    function setPositionController(address _positionController) external;
 
-    function createPositionController() external returns (address);
+    function getPositionController() external view returns (address);
 
     function getLpPool() external view returns (address);
 
@@ -24,6 +24,4 @@ interface IFactory {
     function getFeePot() external view returns (address);
 
     function createFeePot() external returns (address);
-    
-    function addMarket(string memory name,uint32 _maxLeverage,uint256 threshold) external;
 }

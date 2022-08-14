@@ -7,7 +7,6 @@ import "./interfaces/IPositionController.sol";
 import "./interfaces/IPriceOracle.sol";
 import "./LpPool.sol";
 import "./FeePot.sol";
-import "./PositionController.sol";
 import "./PriceOracle.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IFactory.sol";
@@ -23,23 +22,13 @@ contract Factory is Ownable, IFactory {
     IPriceOracle public priceOracle;
     IFeePot public feePot;
 
+    function setPositionController(address _positionController) external onlyOwner {
+        positionController = IPositionController(_positionController);
+         emit PositionControllerCreated(_positionController, msg.sender);
+    }
+
     function getPositionController() external view returns (address) {
         return address(positionController);
-    }
-
-    function createPositionController() external onlyOwner returns (address) {
-        address positionControllerAddress = address(
-            new PositionController(address(this),lpPool.underlyingToken(), address(lpPool))
-        );
-        positionController = IPositionController(
-            payable(positionControllerAddress)
-        );
-        emit PositionControllerCreated(positionControllerAddress, msg.sender);
-        return positionControllerAddress;
-    }
-
-    function addMarket(string memory name,uint32 _maxLeverage,uint256 threshold) public onlyOwner {
-        positionController.addMarket(name, _maxLeverage, threshold);
     }
 
     function getLpPool() external view returns (address) {

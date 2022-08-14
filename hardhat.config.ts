@@ -5,7 +5,15 @@ import "hardhat-deploy";
 require('dotenv').config();
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.9",
+  solidity: {
+    version: "0.8.9",
+    settings: {
+        optimizer: {
+            enabled: true,
+            runs: 200,
+      },
+    },
+  },
   networks: {
     hardhat: {
       forking: {
@@ -17,7 +25,12 @@ const config: HardhatUserConfig = {
       url: `${process.env.POLYGON_MUMBAI_NODE_URL}`,
       accounts: [process.env.DEPLOYER_PRIVATE_KEY!],
       allowUnlimitedContractSize: true,
-    }
+    },
+    polygon: {
+      url: `${process.env.POLYGON_MAINNET_NODE_URL}`,
+      accounts: [process.env.DEPLOYER_PRIVATE_KEY!],
+      allowUnlimitedContractSize: true,
+    },
   }
 };
 

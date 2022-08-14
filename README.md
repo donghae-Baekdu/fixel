@@ -1,21 +1,44 @@
 # Fixel: Perpetual Exchange For NFT
 
 # Deploy
+
 ```
 npx hardhat compile
 npx hardhat run scripts/deploy.ts --network <network-name>
 ```
 
+# Polygon Mainnet contract address
+
+```
+USDC(faucet)
+0xb6e32306cb51821f6592e4fc2fe485b0f88a1267
+
+Oracle
+0x1A0591BE6B3f1d2C152617CFdE7D337030020b37
+
+Factory
+0x8b3FA63C81D0D4D8EfB3024d51d40e2B752ca590
+
+LpPool
+0x59a475cb6350d9beD97882Be47fFF50178dF0C4B
+
+Position Controller
+0x801Fb3DB3cA0a5B3789380525F752d5a11bB9d3E
+
+FeePot
+0x6f7a737e9A60c7aAe6558B7df93aC47Ac40C239B
+```
+
 # Mumbai contract address
 
 ```
-USDC
+USDC(faucet)
 0xbe269676E16ad94B2ABf67B2Bd059E4c12fb3585
 
 Oracle
 0xb25Fc2C070f2Ca7db8a385C101E73bb103809Bc2
 
-Factory 
+Factory
 0xDCD9594322199C0777A7B849Bc1a13b7b589b922
 
 LpPool
@@ -26,4 +49,12 @@ Position Controller
 
 FeePot
 0xDC295EF7F7A10197A998cc1b552428F33372bC67
+```
+
+# .env
+
+```
+NODE_URL=
+WALLET_ADDRESS=
+PRIVATE_KEY=
 ```
