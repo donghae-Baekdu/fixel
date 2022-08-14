@@ -15,25 +15,22 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
 
     uint256 public LEVERAGE_DECIMAL = 2;
 
-    address GD_TOKEN_ADDRESS = address(0);
-    address USDC_TOKEN_ADDRESS = address(0);
+    address GD_TOKEN_ADDRESS;
+    address USDC_TOKEN_ADDRESS;
 
-    IERC20 USDC;// = IERC20(USDC_TOKEN_ADDRESS);
-    IERC20 GD;// = IERC20(GD_TOKEN_ADDRESS);
+    IERC20 USDC;
+    IERC20 GD;
 
-    //TODO: make marketInfo structure
-    mapping(uint80 => string) public markets;
-    mapping(uint80 => uint32) public maxLeverage;
-    mapping(uint80 => uint256) public liquidationThreshold; //bp
-    uint80 marketCount;
+    uint32 marketCount;
 
-    mapping(uint256 => address) private _tokenApprovals;
     mapping(uint256 => Position) public positions;
-    mapping(address => mapping (uint80 => uint256[])) public userMarketPositions;
+
+    mapping(address => mapping (uint32 => uint256[])) public userMarketPositions;
     //user -> tokenId -> index
     mapping(address => mapping(uint256 => uint256)) public userMarketPositionsIndex;
 
-    mapping(uint256 => MarketStatus) public marketStatus;
+    mapping(uint32 => MarketStatus) public marketStatus;
+    mapping(uint32 => MarketInfo) public marketInfo;
 
     IFactory factoryContract;
 
@@ -46,9 +43,9 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     }
 
     function openPosition(
-        uint80 marketId,
-        uint256 liquidity,
+        uint32 marketId,
         uint32 leverage,
+        uint256 liquidity,
         Side side
     ) external {
         require(
@@ -68,7 +65,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         );
         uint256 price = priceOracle.getPrice(marketId);
 
-        require(leverage <= maxLeverage[marketId], "Excessive Leverage");
+        require(leverage <= marketInfo[marketId].maxLeverage, "Excessive Leverage");
 
         uint256 tokenId = totalSupply();
         _mint(msg.sender, tokenId);
@@ -93,14 +90,14 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         emit OpenPosition(
             msg.sender,
             marketId,
-            margin,
             leverage,
             side,
+            margin,
             tokenId
         );
     }
 
-    function closePosition(uint80 marketId, uint256 tokenId) external returns (uint256) {
+    function closePosition(uint32 marketId, uint256 tokenId) external returns (uint256) {
         require(ownerOf(tokenId) == msg.sender, "Invalid Token Id");
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
         uint256 receiveAmount = _closePosition(marketId, tokenId);
@@ -108,14 +105,14 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         return receiveAmount;
     }
 
-    function liquidate(uint80 marketId, uint256 tokenId) external {
+    function liquidate(uint32 marketId, uint256 tokenId) external {
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
         uint256 currentMargin = calculateMargin(tokenId);
         uint256 marginRatio = currentMargin.mul(uint256(10000)).div(
             positions[tokenId].margin
         );
         require(
-            marginRatio < liquidationThreshold[marketId],
+            marginRatio < marketInfo[marketId].liquidationThreshold,
             "Not Liquidatable"
         );
         uint256 returnAmount = _closePosition(marketId, tokenId);
@@ -167,7 +164,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         }
     }
 
-    function _closePosition(uint80 marketId, uint256 tokenId)
+    function _closePosition(uint32 marketId, uint256 tokenId)
         internal
         returns (uint256)
     {
@@ -250,10 +247,10 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         emit ClosePosition(
             ownerOf(tokenId),
             marketId,
-            positions[tokenId].margin,
             positions[tokenId].side,
-            tokenId,
             isProfit,
+            tokenId,
+            positions[tokenId].margin,
             pnl,
             receiveAmount
         );
@@ -261,7 +258,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     }
 
     function updateMarketStatusAfterTrade(
-        uint80 marketId,
+        uint32 marketId,
         Side side,
         TradeType tradeType,
         uint256 margin,
@@ -298,34 +295,34 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     }
 
     function addMarket(
-        string memory name,
+        string memory _name,
         uint32 _maxLeverage,
-        uint256 threshold
+        uint32 _threshold
     ) public onlyOwner {
-        markets[marketCount] = name;
-        maxLeverage[marketCount] = _maxLeverage;
-        liquidationThreshold[marketCount] = threshold;
-        emit AddMarket(marketCount, name, _maxLeverage);
+        marketInfo[marketCount].name = _name;
+        marketInfo[marketCount].maxLeverage = _maxLeverage;
+        marketInfo[marketCount].liquidationThreshold = _threshold;
+        emit AddMarket(_name,marketCount, _maxLeverage);
         marketCount = marketCount + 1;
     }
 
-    function changeMaxLeverage(uint80 marketId, uint32 _maxLeverage)
+    function changeMaxLeverage(uint32 marketId, uint32 _maxLeverage)
         public
         onlyOwner
     {
         require(_maxLeverage > 0, "Max Leverage Should Be Positive");
         require(marketId < marketCount, "Invalid Pool Id");
-        maxLeverage[marketId] = _maxLeverage;
+        marketInfo[marketId].maxLeverage = _maxLeverage;
         emit ChangeMaxLeverage(marketId, _maxLeverage);
     }
 
-    function getMarketMaxLeverage(uint80 marketId)
+    function getMarketMaxLeverage(uint32 marketId)
         external
         view
         returns (uint32)
     {
         require(marketId < marketCount, "Invalid Pool Id");
-        return maxLeverage[marketId];
+        return marketInfo[marketId].maxLeverage;
     }
 
     function getTotalUnrealizedPnl()
@@ -335,7 +332,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     {
         uint256 totalProfit = 0;
         uint256 totalLoss = 0;
-        for (uint80 i = 0; i < marketCount; i = i + 1) {
+        for (uint32 i = 0; i < marketCount; i = i + 1) {
             (Sign sign, uint256 pnl, ) = getUnrealizedPnl(i);
             if (sign == Sign.POS) {
                 totalProfit = totalProfit.add(pnl);
@@ -352,7 +349,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         }
     }
 
-    function applyUnrealizedPnl(uint80 marketId)
+    function applyUnrealizedPnl(uint32 marketId)
         public
         returns (Sign, uint256)
     {
@@ -370,7 +367,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         );
     }
 
-    function getUnrealizedPnl(uint80 marketId)
+    function getUnrealizedPnl(uint32 marketId)
         public
         view
         returns (
@@ -467,7 +464,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         }
     }
     
-    function getOwnedTokensIndex(address user, uint80 marketId) view external returns (uint256[] memory) {
+    function getOwnedTokensIndex(address user, uint32 marketId) view external returns (uint256[] memory) {
         return userMarketPositions[user][marketId];
     }
 
@@ -483,12 +480,12 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         }
     }
 
-    function _addTokenToUserPositions(address user, uint80 marketId, uint256 tokenId) private {
+    function _addTokenToUserPositions(address user, uint32 marketId, uint256 tokenId) private {
         userMarketPositionsIndex[user][tokenId] = userMarketPositions[user][marketId].length;
         userMarketPositions[user][marketId].push(tokenId);
     }
 
-    function _removeTokenFromUserPositions(address user, uint80 marketId, uint256 tokenId) private {
+    function _removeTokenFromUserPositions(address user, uint32 marketId, uint256 tokenId) private {
         // To prevent a gap in the tokens array, we store the last token in the index of the token to delete, and
         // then delete the last slot (swap and pop).
 

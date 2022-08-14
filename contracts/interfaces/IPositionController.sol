@@ -24,7 +24,7 @@ interface IPositionController is IERC721Enumerable {
     }
 
     struct Position {
-        uint80 marketId;
+        uint32 marketId;
         uint32 leverage;
         uint256 margin;
         uint256 price;
@@ -43,24 +43,38 @@ interface IPositionController is IERC721Enumerable {
         uint256 lastBlockNumber;
     }
 
-    event ChangeMaxLeverage(uint80 marketId, uint32 _maxLeverage);
-    event AddMarket(uint80 marketCount, string name, uint32 _maxLeverage);
+    struct MarketInfo {
+        string name;
+        uint32 maxLeverage;
+        uint32 liquidationThreshold;
+    }
+
+    struct FundingFee {
+        uint256 lastTimestamp;
+        Sign sign;
+        uint256 accRate; //bp
+    }
+
+    event ChangeMaxLeverage(uint32 marketId, uint32 _maxLeverage);
+
+    event AddMarket( string name,uint32 marketCount, uint32 _maxLeverage);
 
     event OpenPosition(
         address user,
-        uint80 marketId,
-        uint256 margin,
+        uint32 marketId,
         uint32 leverage,
         Side side,
+        uint256 margin,
         uint256 tokenId
     );
+
     event ClosePosition(
         address user,
-        uint80 marketId,
-        uint256 margin,
+        uint32 marketId,
         Side side,
-        uint256 tokenId,
         bool isProfit,
+        uint256 tokenId,
+        uint256 margin,
         uint256 pnl,
         uint256 receiveAmount
     );
@@ -68,28 +82,27 @@ interface IPositionController is IERC721Enumerable {
     event Liquidation(
         address user,
         address liquidator,
-        uint80 marketId,
+        uint32 marketId,
         uint256 tokenId
     );
 
-
     function openPosition(
-        uint80 marketId,
-        uint256 liquidity,
+        uint32 marketId,
         uint32 leverage,
+        uint256 liquidity,
         Side side
     ) external;
 
-    function closePosition(uint80 marketId, uint256 tokenId) external returns(uint256);
+    function closePosition(uint32 marketId, uint256 tokenId) external returns(uint256);
 
-    function liquidate(uint80 marketId, uint256 tokenId) external;
+    function liquidate(uint32 marketId, uint256 tokenId) external;
     
-    function getMarketMaxLeverage(uint80 marketId)
+    function getMarketMaxLeverage(uint32 marketId)
         external
         view
         returns (uint32);
 
-    function applyUnrealizedPnl(uint80 marketId)
+    function applyUnrealizedPnl(uint32 marketId)
         external
         returns (Sign, uint256);
 
@@ -98,7 +111,7 @@ interface IPositionController is IERC721Enumerable {
         view
         returns (bool isPositive, uint256 value);
 
-    function getUnrealizedPnl(uint80 marketId)
+    function getUnrealizedPnl(uint32 marketId)
         external
         view
         returns (
@@ -107,11 +120,11 @@ interface IPositionController is IERC721Enumerable {
             uint256 currentPrice
         );
         
-    function getOwnedTokensIndex(address user, uint80 marketId) view external returns (uint256[] memory);
+    function getOwnedTokensIndex(address user, uint32 marketId) view external returns (uint256[] memory);
 
     function addMarket(
         string memory name,
         uint32 _maxLeverage,
-        uint256 threshold
+        uint32 threshold
     ) external;
 }
