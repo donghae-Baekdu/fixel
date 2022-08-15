@@ -133,4 +133,8 @@ interface IPositionController is IERC721Enumerable {
         uint32 _maxLeverage,
         uint32 threshold
     ) external;
+
+    function calculatePositionFundingFee(uint256 tokenId) view external returns (Sign sign, uint256 fundingFee );
+
+    function applyFundingRate(uint32 marketId, Sign sign, uint256 fundingRate) external;
 }
