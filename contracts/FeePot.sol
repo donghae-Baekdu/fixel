@@ -3,19 +3,12 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract FeePot {
+contract FeePot is Ownable{
     using SafeERC20 for IERC20;
-
-    address _owner;
-
-    constructor(address owner) {
-        _owner = owner;
-    }
-
-    modifier onlyOwner() {
-        require(_owner == msg.sender, "Your not the owner");
-        _;
+    
+    constructor() {
     }
 
     function withdrawFee(

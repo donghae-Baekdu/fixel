@@ -24,7 +24,7 @@ contract Factory is Ownable, IFactory {
 
     function setPositionController(address _positionController) external onlyOwner {
         positionController = IPositionController(_positionController);
-         emit PositionControllerCreated(_positionController, msg.sender);
+        emit SetPositionController(_positionController);
     }
 
     function getPositionController() external view returns (address) {
@@ -35,21 +35,14 @@ contract Factory is Ownable, IFactory {
         return address(lpPool);
     }
 
-    function createLpPool(address underlyingToken)
-        external
-        onlyOwner
-        returns (address)
-    {
-        address lpPoolAddress = address(
-            new LpPool(msg.sender, underlyingToken)
-        );
-        lpPool = ILpPool(payable(lpPoolAddress));
-        emit LpPoolCreated(lpPoolAddress, msg.sender);
-        return lpPoolAddress;
+    function setLpPool(address _lpPoolAddress) external onlyOwner {
+        lpPool = ILpPool(lpPoolAddress);
+        emit SetLpPool(lpPoolAddress);
     }
 
-    function setPriceOracle(address _priceOracle) external onlyOwner {
-        priceOracle = IPriceOracle(_priceOracle);
+    function setPriceOracle(address _priceOracleAddress) external onlyOwner {
+        priceOracle = IPriceOracle(_priceOracleAddress);
+        emit SetPriceOracle(_priceOracleAddress);
     }
 
     function getPriceOracle() external view returns (address) {
@@ -60,10 +53,8 @@ contract Factory is Ownable, IFactory {
         return address(feePot);
     }
 
-    function createFeePot() external onlyOwner returns (address) {
-        address feePotAddress = address(new FeePot(msg.sender));
-        feePot = IFeePot(payable(feePotAddress));
-        emit FeePotCreated(feePotAddress, msg.sender);
-        return feePotAddress;
+    function setFeePot(address payable _feePotAddress) external onlyOwner {
+        feePot = IFeePot(_feePotAddress);
+        emit SetFeePot(_feePotAddress);
     }
 }

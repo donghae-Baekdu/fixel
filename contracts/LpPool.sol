@@ -13,7 +13,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "hardhat/console.sol";
 
-contract LpPool is LpToken, ILpPool {
+contract LpPool is LpToken, ILpPool, Ownable {
     using SafeMath for uint256;
     using SafeMath for uint80;
     using SafeERC20 for IERC20;
@@ -30,15 +30,9 @@ contract LpPool is LpToken, ILpPool {
     uint80 defaultExchangeFeeTier; // bp
     uint80 defaultLpFeeTier; // bp
 
-    constructor(address _owner, address _underlyingToken) public {
-        owner = _owner;
+    constructor(address _underlyingToken) public {
         underlyingToken = _underlyingToken;
         factory = msg.sender;
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "You are not owner of this contract");
-        _;
     }
 
     modifier onlyExchanger() {
