@@ -11,9 +11,10 @@ import "hardhat/console.sol";
 
 //TODO: calculate funding fee -> complete
 //TODO: apply funding fee when close position -> complete
+//TODO: apply funding fee to liquidation condition -> complete
 
 //TODO: change margin structure
-
+//TODO: add sign to currentMargin, consider negative balance
 contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     using SafeMath for uint256;
     using SafeMath for uint32;
@@ -117,7 +118,20 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
 
     function liquidate(uint32 marketId, uint256 tokenId) external {
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
+
+        (Sign fundingFeeSign, uint256 fundingFee) = calculatePositionFundingFee(tokenId);
         uint256 currentMargin = calculateMargin(tokenId);
+
+        if(fundingFeeSign == Sign.POS) {
+            currentMargin = currentMargin.add(fundingFee);
+        } else {
+            if(currentMargin < fundingFee){
+                currentMargin = 0;
+            } else {
+                currentMargin = currentMargin.sub(fundingFee);
+            }
+        }
+
         uint256 marginRatio = currentMargin.mul(uint256(10000)).div(
             positions[tokenId].margin
         );
