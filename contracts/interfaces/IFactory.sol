@@ -2,14 +2,15 @@
 pragma solidity ^0.8.9;
 
 interface IFactory {
-    event LpPoolCreated(address poolAddress, address owner);
+    event SetLpPool(address poolAddress);
 
-    event PositionControllerCreated(
-        address positionControllerAddress,
-        address owner
+    event SetPositionController(
+        address positionControllerAddress
     );
 
-    event FeePotCreated(address poolAddress, address owner);
+    event SetFeePot(address feePotAddress);
+
+    event SetPriceOracle(address priceOracleAddress);
 
     function setPositionController(address _positionController) external;
 
@@ -17,11 +18,13 @@ interface IFactory {
 
     function getLpPool() external view returns (address);
 
-    function createLpPool(address underlyingToken) external returns (address);
+    function setLpPool(address _lpPoolAddress) external returns ();
 
     function getPriceOracle() external view returns (address);
 
+    function setPriceOracle(address _priceOracleAddress) external;
+
     function getFeePot() external view returns (address);
 
-    function createFeePot() external returns (address);
+    function setFeePot(address payable _feePotAddress) external returns ();
 }
