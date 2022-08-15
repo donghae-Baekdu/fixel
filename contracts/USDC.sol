@@ -8,7 +8,7 @@ contract USDC is IERC20 {
     mapping(address => mapping(address => uint)) public allowance;
     string public name = "USDC Example Code";
     string public symbol = "USDC-TEST";
-    uint8 public decimals = 6;
+    uint8 public decimals = 18;
 
     function transfer(address recipient, uint amount) external returns (bool) {
         balanceOf[msg.sender] = balanceOf[msg.sender] - amount;
