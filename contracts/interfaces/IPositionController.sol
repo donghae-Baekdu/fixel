@@ -63,6 +63,8 @@ interface IPositionController is IERC721Enumerable {
 
     event AddMarket( string name,uint32 marketCount, uint32 _maxLeverage);
 
+    event ApplyFundingFee(uint32 marketId,Sign sign, uint256 fundingRate);
+
     event OpenPosition(
         address user,
         uint32 marketId,
