@@ -9,12 +9,17 @@ import "./interfaces/ILpPool.sol";
 import "./interfaces/IPositionController.sol";
 import "hardhat/console.sol";
 
+//TODO: calculate funding fee
+//TODO: apply funding fee when close position
+
+//TODO: change margin structure
+
 contract PositionController is ERC721Enumerable, Ownable, IPositionController {
     using SafeMath for uint256;
     using SafeMath for uint32;
 
     uint256 public LEVERAGE_DECIMAL = 2;
-
+    uint256 public FUNDING_RATE_DECIMAL = 4;
     address GD_TOKEN_ADDRESS;
     address USDC_TOKEN_ADDRESS;
 
@@ -229,11 +234,11 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         ILpPool lpPool = ILpPool(factoryContract.getLpPool());
 
         if (isProfit) {
-            (marketStatus[marketId].pnlSign, marketStatus[marketId].unrealizedPnl) = calculateUnsignedSum(marketStatus[marketId].pnlSign,marketStatus[marketId].unrealizedPnl,Sign.NEG, pnl);
+            (marketStatus[marketId].pnlSign, marketStatus[marketId].unrealizedPnl) = calculateUnsignedAdd(marketStatus[marketId].pnlSign,marketStatus[marketId].unrealizedPnl,Sign.NEG, pnl);
             lpPool.mint(address(this), pnl);
             refundGd = positions[tokenId].margin.add(pnl);
         } else {
-            (marketStatus[marketId].pnlSign, marketStatus[marketId].unrealizedPnl) = calculateUnsignedSum(marketStatus[marketId].pnlSign,marketStatus[marketId].unrealizedPnl,Sign.POS, pnl);
+            (marketStatus[marketId].pnlSign, marketStatus[marketId].unrealizedPnl) = calculateUnsignedAdd(marketStatus[marketId].pnlSign,marketStatus[marketId].unrealizedPnl,Sign.POS, pnl);
             uint256 burnAmount = pnl > positions[marketId].margin
                 ? positions[marketId].margin
                 : pnl;
@@ -473,15 +478,35 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         return userMarketPositions[user][marketId];
     }
 
+    function calculatePositionFundingFee(uint256 tokenId) view external returns (Sign sign, uint256 fundingFee) {
+        require(positions[tokenId].status == Status.OPEN, "Already Closed");
+        (Sign resSign, uint256 resNum) = calculateUnsignedSub(accFundingFee[positions[tokenId].marketId].sign, accFundingFee[positions[tokenId].marketId].accRate, positions[tokenId].initialFundingFeeSign, positions[tokenId].initialAccFundingFee);
+        //TODO: should re-write after applying notional value
+        fundingFee = positions[tokenId].margin.mul(positions[tokenId].leverage).mul(resNum).div(uint256(10)**FUNDING_RATE_DECIMAL);
+        if(positions[tokenId].side == Side.LONG){
+            if(resSign == Sign.POS){
+                sign = Sign.NEG;
+            } else {
+                sign = Sign.POS;
+            }
+        } else {
+            if(resSign == Sign.POS) {
+                sign = Sign.POS;
+            } else {
+                sign = Sign.NEG;
+            }
+        }
+    }
+
     function applyFundingRate(uint32 marketId, Sign sign, uint256 fundingRate) external onlyOwner {
-        (Sign resSign, uint256 resNum) = calculateUnsignedSum(accFundingFee[marketId].sign, accFundingFee[marketId].accRate, sign, fundingRate);
+        (Sign resSign, uint256 resNum) = calculateUnsignedAdd(accFundingFee[marketId].sign, accFundingFee[marketId].accRate, sign, fundingRate);
         accFundingFee[marketId].sign = resSign;
         accFundingFee[marketId].accRate = resNum;
         accFundingFee[marketId].lastTimestamp = uint256(block.timestamp);
         emit ApplyFundingFee(marketId, sign, fundingRate);
     }
 
-    function calculateUnsignedSum(Sign signA, uint256 numA, Sign signB, uint256 numB) internal returns(Sign resSign, uint256 resNum){
+    function calculateUnsignedAdd(Sign signA, uint256 numA, Sign signB, uint256 numB) pure internal returns(Sign resSign, uint256 resNum){
         if(signA == signB){
             return (signA, numA.add(numB));
         } else{
@@ -489,6 +514,22 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
                 return (signA, numA.sub(numB));
             } else {
                 return (signB, numB.sub(numA));
+            }
+        }
+    }
+
+    function calculateUnsignedSub(Sign signA, uint256 numA, Sign signB, uint256 numB) pure internal returns(Sign resSign, uint256 resNum){
+        if(signA !=signB){
+            return (signA, numA.add(numB));
+        }else {
+            if(numA > numB){
+                return (signA, numA.sub(numB));
+            } else {
+                if(signA == Sign.POS){
+                    return (Sign.NEG, numB.sub(numA));
+                } else{
+                    return (Sign.POS, numB.sub(numA));
+                }
             }
         }
     }
