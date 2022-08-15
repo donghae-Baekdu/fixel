@@ -473,6 +473,14 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         return userMarketPositions[user][marketId];
     }
 
+    function applyFundingRate(uint32 marketId, Sign sign, uint256 fundingRate) external onlyOwner {
+        (Sign resSign, uint256 resNum) = calculateUnsignedSum(accFundingFee[marketId].sign, accFundingFee[marketId].accRate, sign, fundingRate);
+        accFundingFee[marketId].sign = resSign;
+        accFundingFee[marketId].accRate = resNum;
+        accFundingFee[marketId].lastTimestamp = uint256(block.timestamp);
+        emit ApplyFundingFee(marketId, sign, fundingRate);
+    }
+
     function calculateUnsignedSum(Sign signA, uint256 numA, Sign signB, uint256 numB) internal returns(Sign resSign, uint256 resNum){
         if(signA == signB){
             return (signA, numA.add(numB));
