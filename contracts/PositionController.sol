@@ -31,6 +31,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
 
     mapping(uint32 => MarketStatus) public marketStatus;
     mapping(uint32 => MarketInfo) public marketInfo;
+    mapping(uint32 => FundingFee) public accFundingFee;
 
     IFactory factoryContract;
 
@@ -75,6 +76,10 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             margin,
             price,
             uint256(0),
+            accFundingFee[marketId].accRate,
+            uint256(block.timestamp),
+            uint256(0),
+            accFundingFee[marketId].sign,
             side,
             Status.OPEN
         );
@@ -238,7 +243,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
       
         positions[tokenId].status = Status.CLOSE;
         positions[tokenId].closePrice = marketStatus[marketId].lastPrice;
-
+        positions[tokenId].closeTimestamp = uint256(block.timestamp);
         uint256 receiveAmount = lpPool.removeLiquidity(
             ownerOf(tokenId),
             refundGd,

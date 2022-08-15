@@ -29,6 +29,10 @@ interface IPositionController is IERC721Enumerable {
         uint256 margin;
         uint256 price;
         uint256 closePrice;
+        uint256 initialAccFundingFee;
+        uint256 openTimestamp;
+        uint256 closeTimestamp;
+        Sign initialFundingFeeSign;
         Side side;
         Status status;
     }
@@ -50,8 +54,8 @@ interface IPositionController is IERC721Enumerable {
     }
 
     struct FundingFee {
-        uint256 lastTimestamp;
         Sign sign;
+        uint256 lastTimestamp;
         uint256 accRate; //bp
     }
 
