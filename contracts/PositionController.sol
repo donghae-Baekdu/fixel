@@ -9,8 +9,8 @@ import "./interfaces/ILpPool.sol";
 import "./interfaces/IPositionController.sol";
 import "hardhat/console.sol";
 
-//TODO: calculate funding fee
-//TODO: apply funding fee when close position
+//TODO: calculate funding fee -> complete
+//TODO: apply funding fee when close position -> complete
 
 //TODO: change margin structure
 
@@ -188,7 +188,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             )
         );
 
-        bool isProfit;
+        Sign pnlSign;
         uint256 pnl;
         uint256 factor = positions[tokenId]
             .margin
@@ -197,14 +197,14 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
 
         if (positions[tokenId].side == Side.LONG) {
             if (marketStatus[marketId].lastPrice > positions[tokenId].price) {
-                isProfit = true;
+                pnlSign = Sign.POS;
                 pnl = (
                     marketStatus[marketId].lastPrice.sub(
                         positions[tokenId].price
                     )
                 ).mul(factor).div(uint256(10)**LEVERAGE_DECIMAL);
             } else {
-                isProfit = false;
+                pnlSign = Sign.NEG;
                 pnl = (
                     positions[tokenId].price.sub(
                         marketStatus[marketId].lastPrice
@@ -213,14 +213,14 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             }
         } else {
             if (marketStatus[marketId].lastPrice > positions[tokenId].price) {
-                isProfit = false;
+                pnlSign = Sign.NEG;
                 pnl = (
                     marketStatus[marketId].lastPrice.sub(
                         positions[tokenId].price
                     )
                 ).mul(factor).div(uint256(10)**LEVERAGE_DECIMAL);
             } else {
-                isProfit = true;
+                pnlSign = Sign.POS;
                 pnl = (
                     positions[tokenId].price.sub(
                         marketStatus[marketId].lastPrice
@@ -229,11 +229,14 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             }
         }
 
+        (Sign fundingFeeSign, uint256 fundingFee) = calculatePositionFundingFee(tokenId);
+        (pnlSign, pnl) = calculateUnsignedAdd(pnlSign, pnl, fundingFeeSign, fundingFee);
+
         uint256 refundGd;
       
         ILpPool lpPool = ILpPool(factoryContract.getLpPool());
 
-        if (isProfit) {
+        if (pnlSign == Sign.POS) {
             (marketStatus[marketId].pnlSign, marketStatus[marketId].unrealizedPnl) = calculateUnsignedAdd(marketStatus[marketId].pnlSign,marketStatus[marketId].unrealizedPnl,Sign.NEG, pnl);
             lpPool.mint(address(this), pnl);
             refundGd = positions[tokenId].margin.add(pnl);
@@ -245,7 +248,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             lpPool.burn(address(this), burnAmount);
             refundGd = positions[tokenId].margin.sub(burnAmount);
         }
-      
+
         positions[tokenId].status = Status.CLOSE;
         positions[tokenId].closePrice = marketStatus[marketId].lastPrice;
         positions[tokenId].closeTimestamp = uint256(block.timestamp);
@@ -258,7 +261,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
             ownerOf(tokenId),
             marketId,
             positions[tokenId].side,
-            isProfit,
+            pnlSign,
             tokenId,
             positions[tokenId].margin,
             pnl,
@@ -478,7 +481,7 @@ contract PositionController is ERC721Enumerable, Ownable, IPositionController {
         return userMarketPositions[user][marketId];
     }
 
-    function calculatePositionFundingFee(uint256 tokenId) view external returns (Sign sign, uint256 fundingFee) {
+    function calculatePositionFundingFee(uint256 tokenId) view public returns (Sign sign, uint256 fundingFee) {
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
         (Sign resSign, uint256 resNum) = calculateUnsignedSub(accFundingFee[positions[tokenId].marketId].sign, accFundingFee[positions[tokenId].marketId].accRate, positions[tokenId].initialFundingFeeSign, positions[tokenId].initialAccFundingFee);
         //TODO: should re-write after applying notional value

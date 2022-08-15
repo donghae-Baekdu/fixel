@@ -78,7 +78,7 @@ interface IPositionController is IERC721Enumerable {
         address user,
         uint32 marketId,
         Side side,
-        bool isProfit,
+        Sign pnlSign,
         uint256 tokenId,
         uint256 margin,
         uint256 pnl,
@@ -134,7 +134,7 @@ interface IPositionController is IERC721Enumerable {
         uint32 threshold
     ) external;
 
-    function calculatePositionFundingFee(uint256 tokenId) view external returns (Sign sign, uint256 fundingFee );
+    function calculatePositionFundingFee(uint256 tokenId) view external returns (Sign sign, uint256 fundingFee);
 
     function applyFundingRate(uint32 marketId, Sign sign, uint256 fundingRate) external;
 }
