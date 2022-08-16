@@ -35,9 +35,10 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
     }
     mapping(uint256 => Position) public positions;
 
-    mapping(address => mapping (uint32 => uint256[])) public userMarketPositions;
+    mapping(address => mapping(uint32 => uint256[])) public userMarketPositions;
     //user -> tokenId -> index
-    mapping(address => mapping(uint256 => uint256)) public userMarketPositionsIndex;
+    mapping(address => mapping(uint256 => uint256))
+        public userMarketPositionsIndex;
 
     mapping(uint32 => MarketStatus) public marketStatus;
     mapping(uint32 => MarketInfo) public marketInfo;
@@ -45,9 +46,11 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
 
     IFactory factoryContract;
 
-    constructor(address _factoryContract, address _usdc, address _gd)
-        ERC721("Renaissance Position", "rPos")
-    {
+    constructor(
+        address _factoryContract,
+        address _usdc,
+        address _gd
+    ) ERC721("Renaissance Position", "rPos") {
         factoryContract = IFactory(_factoryContract);
         USDC = IERC20(_usdc);
         GD = IERC20(_gd);
@@ -76,7 +79,10 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         );
         uint256 price = priceOracle.getPrice(marketId);
 
-        require(leverage <= marketInfo[marketId].maxLeverage, "Excessive Leverage");
+        require(
+            leverage <= marketInfo[marketId].maxLeverage,
+            "Excessive Leverage"
+        );
 
         uint256 tokenId = totalSupply();
         _mint(msg.sender, tokenId);
@@ -93,7 +99,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             side,
             Status.OPEN
         );
-        
+
         updateMarketStatusAfterTrade(
             marketId,
             side,
@@ -112,7 +118,10 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         );
     }
 
-    function closePosition(uint32 marketId, uint256 tokenId) external returns (uint256) {
+    function closePosition(uint32 marketId, uint256 tokenId)
+        external
+        returns (uint256)
+    {
         require(ownerOf(tokenId) == msg.sender, "Invalid Token Id");
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
         uint256 receiveAmount = _closePosition(marketId, tokenId);
@@ -123,13 +132,15 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
     function liquidate(uint32 marketId, uint256 tokenId) external {
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
 
-        (Sign fundingFeeSign, uint256 fundingFee) = calculatePositionFundingFee(tokenId);
+        (Sign fundingFeeSign, uint256 fundingFee) = calculatePositionFundingFee(
+            tokenId
+        );
         uint256 currentMargin = calculateMargin(tokenId);
 
-        if(fundingFeeSign == Sign.POS) {
+        if (fundingFeeSign == Sign.POS) {
             currentMargin = currentMargin.add(fundingFee);
         } else {
-            if(currentMargin < fundingFee){
+            if (currentMargin < fundingFee) {
                 currentMargin = 0;
             } else {
                 currentMargin = currentMargin.sub(fundingFee);
@@ -207,7 +218,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         );
 
         ValueWithSign memory pnl;
-        
+
         uint256 factor = positions[tokenId]
             .margin
             .mul(positions[tokenId].leverage)
@@ -247,22 +258,45 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             }
         }
 
-        (Sign fundingFeeSign, uint256 fundingFee) = calculatePositionFundingFee(tokenId);
-        (pnl.sign, pnl.value) = calculateUnsignedAdd(pnl.sign, pnl.value, fundingFeeSign, fundingFee);
+        (Sign fundingFeeSign, uint256 fundingFee) = calculatePositionFundingFee(
+            tokenId
+        );
+        (pnl.sign, pnl.value) = calculateUnsignedAdd(
+            pnl.sign,
+            pnl.value,
+            fundingFeeSign,
+            fundingFee
+        );
         address lpPoolAddress = factoryContract.getLpPool();
         uint256 receiveAmount;
 
         if (pnl.sign == Sign.POS) {
-            (marketStatus[marketId].pnlSign, marketStatus[marketId].unrealizedPnl) = calculateUnsignedAdd(marketStatus[marketId].pnlSign,marketStatus[marketId].unrealizedPnl,Sign.NEG, pnl.value);
+            (
+                marketStatus[marketId].pnlSign,
+                marketStatus[marketId].unrealizedPnl
+            ) = calculateUnsignedAdd(
+                marketStatus[marketId].pnlSign,
+                marketStatus[marketId].unrealizedPnl,
+                Sign.NEG,
+                pnl.value
+            );
             ILpPool(lpPoolAddress).mint(address(this), pnl.value);
-            
+
             receiveAmount = ILpPool(lpPoolAddress).removeLiquidity(
                 ownerOf(tokenId),
                 positions[tokenId].margin.add(pnl.value),
                 ILpPool.exchangerCall.yes
             );
         } else {
-            (marketStatus[marketId].pnlSign, marketStatus[marketId].unrealizedPnl) = calculateUnsignedAdd(marketStatus[marketId].pnlSign,marketStatus[marketId].unrealizedPnl,Sign.POS, pnl.value);
+            (
+                marketStatus[marketId].pnlSign,
+                marketStatus[marketId].unrealizedPnl
+            ) = calculateUnsignedAdd(
+                marketStatus[marketId].pnlSign,
+                marketStatus[marketId].unrealizedPnl,
+                Sign.POS,
+                pnl.value
+            );
             uint256 burnAmount = pnl.value > positions[marketId].margin
                 ? positions[marketId].margin
                 : pnl.value;
@@ -277,7 +311,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         positions[tokenId].status = Status.CLOSE;
         positions[tokenId].closePrice = marketStatus[marketId].lastPrice;
         positions[tokenId].closeTimestamp = uint256(block.timestamp);
-       
+
         emit ClosePosition(
             ownerOf(tokenId),
             marketId,
@@ -336,7 +370,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         marketInfo[marketCount].name = _name;
         marketInfo[marketCount].maxLeverage = _maxLeverage;
         marketInfo[marketCount].liquidationThreshold = _threshold;
-        emit AddMarket(_name,marketCount, _maxLeverage);
+        emit AddMarket(_name, marketCount, _maxLeverage);
         marketCount = marketCount + 1;
     }
 
@@ -497,24 +531,41 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             }
         }
     }
-    
-    function getOwnedTokensIndex(address user, uint32 marketId) view external returns (uint256[] memory) {
+
+    function getOwnedTokensIndex(address user, uint32 marketId)
+        external
+        view
+        returns (uint256[] memory)
+    {
         return userMarketPositions[user][marketId];
     }
 
-    function calculatePositionFundingFee(uint256 tokenId) view public returns (Sign sign, uint256 fundingFee) {
+    function calculatePositionFundingFee(uint256 tokenId)
+        public
+        view
+        returns (Sign sign, uint256 fundingFee)
+    {
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
-        (Sign resSign, uint256 resNum) = calculateUnsignedSub(accFundingFee[positions[tokenId].marketId].sign, accFundingFee[positions[tokenId].marketId].accRate, positions[tokenId].initialFundingFeeSign, positions[tokenId].initialAccFundingFee);
+        (Sign resSign, uint256 resNum) = calculateUnsignedSub(
+            accFundingFee[positions[tokenId].marketId].sign,
+            accFundingFee[positions[tokenId].marketId].accRate,
+            positions[tokenId].initialFundingFeeSign,
+            positions[tokenId].initialAccFundingFee
+        );
         //TODO: should re-write after applying notional value
-        fundingFee = positions[tokenId].margin.mul(positions[tokenId].leverage).mul(resNum).div(uint256(10)**FUNDING_RATE_DECIMAL);
-        if(positions[tokenId].side == Side.LONG){
-            if(resSign == Sign.POS){
+        fundingFee = positions[tokenId]
+            .margin
+            .mul(positions[tokenId].leverage)
+            .mul(resNum)
+            .div(uint256(10)**FUNDING_RATE_DECIMAL);
+        if (positions[tokenId].side == Side.LONG) {
+            if (resSign == Sign.POS) {
                 sign = Sign.NEG;
             } else {
                 sign = Sign.POS;
             }
         } else {
-            if(resSign == Sign.POS) {
+            if (resSign == Sign.POS) {
                 sign = Sign.POS;
             } else {
                 sign = Sign.NEG;
@@ -522,19 +573,33 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         }
     }
 
-    function applyFundingRate(uint32 marketId, Sign sign, uint256 fundingRate) external onlyOwner {
-        (Sign resSign, uint256 resNum) = calculateUnsignedAdd(accFundingFee[marketId].sign, accFundingFee[marketId].accRate, sign, fundingRate);
+    function applyFundingRate(
+        uint32 marketId,
+        Sign sign,
+        uint256 fundingRate
+    ) external onlyOwner {
+        (Sign resSign, uint256 resNum) = calculateUnsignedAdd(
+            accFundingFee[marketId].sign,
+            accFundingFee[marketId].accRate,
+            sign,
+            fundingRate
+        );
         accFundingFee[marketId].sign = resSign;
         accFundingFee[marketId].accRate = resNum;
         accFundingFee[marketId].lastTimestamp = uint256(block.timestamp);
         emit ApplyFundingFee(marketId, sign, fundingRate);
     }
 
-    function calculateUnsignedAdd(Sign signA, uint256 numA, Sign signB, uint256 numB) pure internal returns(Sign resSign, uint256 resNum){
-        if(signA == signB){
+    function calculateUnsignedAdd(
+        Sign signA,
+        uint256 numA,
+        Sign signB,
+        uint256 numB
+    ) internal pure returns (Sign resSign, uint256 resNum) {
+        if (signA == signB) {
             return (signA, numA.add(numB));
-        } else{
-            if(numA > numB){
+        } else {
+            if (numA > numB) {
                 return (signA, numA.sub(numB));
             } else {
                 return (signB, numB.sub(numA));
@@ -542,28 +607,43 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         }
     }
 
-    function calculateUnsignedSub(Sign signA, uint256 numA, Sign signB, uint256 numB) pure internal returns(Sign resSign, uint256 resNum){
-        if(signA !=signB){
+    function calculateUnsignedSub(
+        Sign signA,
+        uint256 numA,
+        Sign signB,
+        uint256 numB
+    ) internal pure returns (Sign resSign, uint256 resNum) {
+        if (signA != signB) {
             return (signA, numA.add(numB));
-        }else {
-            if(numA > numB){
+        } else {
+            if (numA > numB) {
                 return (signA, numA.sub(numB));
             } else {
-                if(signA == Sign.POS){
+                if (signA == Sign.POS) {
                     return (Sign.NEG, numB.sub(numA));
-                } else{
+                } else {
                     return (Sign.POS, numB.sub(numA));
                 }
             }
         }
     }
 
-    function _addTokenToUserPositions(address user, uint32 marketId, uint256 tokenId) private {
-        userMarketPositionsIndex[user][tokenId] = userMarketPositions[user][marketId].length;
+    function _addTokenToUserPositions(
+        address user,
+        uint32 marketId,
+        uint256 tokenId
+    ) private {
+        userMarketPositionsIndex[user][tokenId] = userMarketPositions[user][
+            marketId
+        ].length;
         userMarketPositions[user][marketId].push(tokenId);
     }
 
-    function _removeTokenFromUserPositions(address user, uint32 marketId, uint256 tokenId) private {
+    function _removeTokenFromUserPositions(
+        address user,
+        uint32 marketId,
+        uint256 tokenId
+    ) private {
         // To prevent a gap in the tokens array, we store the last token in the index of the token to delete, and
         // then delete the last slot (swap and pop).
 
@@ -573,7 +653,9 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         // When the token to delete is the last token, the swap operation is unnecessary. However, since this occurs so
         // rarely (when the last minted token is burnt) that we still do the swap here to avoid the gas cost of adding
         // an 'if' statement (like in _removeTokenFromOwnerEnumeration)
-        uint256 lastTokenId = userMarketPositions[user][marketId][lastTokenIndex];
+        uint256 lastTokenId = userMarketPositions[user][marketId][
+            lastTokenIndex
+        ];
 
         userMarketPositions[user][marketId][tokenIndex] = lastTokenId; // Move the last token to the slot of the to-delete token
         userMarketPositionsIndex[user][lastTokenId] = tokenIndex; // Update the moved token's index
@@ -582,19 +664,27 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         delete userMarketPositionsIndex[user][tokenId];
         userMarketPositions[user][marketId].pop();
     }
-    
+
     function _afterTokenTransfer(
         address from,
         address to,
         uint256 tokenId
     ) internal override {
-        if(from == address(0)){
+        if (from == address(0)) {
             _addTokenToUserPositions(to, positions[tokenId].marketId, tokenId);
-        } else if(to == address(0)){
-            _removeTokenFromUserPositions(from, positions[tokenId].marketId, tokenId);
+        } else if (to == address(0)) {
+            _removeTokenFromUserPositions(
+                from,
+                positions[tokenId].marketId,
+                tokenId
+            );
         } else {
             _addTokenToUserPositions(to, positions[tokenId].marketId, tokenId);
-            _removeTokenFromUserPositions(from, positions[tokenId].marketId, tokenId);
+            _removeTokenFromUserPositions(
+                from,
+                positions[tokenId].marketId,
+                tokenId
+            );
         }
     }
 }
