@@ -5,9 +5,6 @@ import "./interfaces/ILpPool.sol";
 import "./interfaces/IFeePot.sol";
 import "./interfaces/IPositionController.sol";
 import "./interfaces/IPriceOracle.sol";
-import "./LpPool.sol";
-import "./FeePot.sol";
-import "./PriceOracle.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IFactory.sol";
 
@@ -36,8 +33,8 @@ contract Factory is Ownable, IFactory {
     }
 
     function setLpPool(address _lpPoolAddress) external onlyOwner {
-        lpPool = ILpPool(lpPoolAddress);
-        emit SetLpPool(lpPoolAddress);
+        lpPool = ILpPool(_lpPoolAddress);
+        emit SetLpPool(_lpPoolAddress);
     }
 
     function setPriceOracle(address _priceOracleAddress) external onlyOwner {

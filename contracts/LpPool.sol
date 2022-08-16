@@ -18,7 +18,6 @@ contract LpPool is LpToken, ILpPool, Ownable {
     using SafeMath for uint80;
     using SafeERC20 for IERC20;
 
-    address owner;
     address factory;
 
     address public override underlyingToken;
@@ -30,9 +29,9 @@ contract LpPool is LpToken, ILpPool, Ownable {
     uint80 defaultExchangeFeeTier; // bp
     uint80 defaultLpFeeTier; // bp
 
-    constructor(address _underlyingToken) public {
+    constructor(address _underlyingToken, address _factory) public {
         underlyingToken = _underlyingToken;
-        factory = msg.sender;
+        factory = _factory;
     }
 
     modifier onlyExchanger() {

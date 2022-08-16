@@ -18,7 +18,7 @@ interface IFactory {
 
     function getLpPool() external view returns (address);
 
-    function setLpPool(address _lpPoolAddress) external returns ();
+    function setLpPool(address _lpPoolAddress) external;
 
     function getPriceOracle() external view returns (address);
 
@@ -26,5 +26,5 @@ interface IFactory {
 
     function getFeePot() external view returns (address);
 
-    function setFeePot(address payable _feePotAddress) external returns ();
+    function setFeePot(address payable _feePotAddress) external;
 }
