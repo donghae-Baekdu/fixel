@@ -25,9 +25,11 @@ interface IPositionManager is IERC721Enumerable {
 
     struct Position {
         uint32 marketId;
-        uint32 leverage;
+        //uint32 leverage;
         uint256 margin;
+        uint256 notionalValue;
         uint256 price;
+        uint256 factor;
         uint256 closePrice;
         uint256 initialAccFundingFee;
         uint256 openTimestamp;
