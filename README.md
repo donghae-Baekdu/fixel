@@ -22,7 +22,7 @@ Factory
 LpPool
 0x59a475cb6350d9beD97882Be47fFF50178dF0C4B
 
-Position Controller
+Position Manager
 0x801Fb3DB3cA0a5B3789380525F752d5a11bB9d3E
 
 FeePot
@@ -44,7 +44,7 @@ Factory
 LpPool
 0x5dBe85B99e67B6F43b447B22BC9f0673929A67eB
 
-Position Controller
+Position Manager
 0xd6059babBAAe1cdb5aB579703106DBf40925c843
 
 FeePot

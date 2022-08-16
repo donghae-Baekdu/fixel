@@ -1,11 +1,11 @@
 pragma solidity ^0.8.9;
 
-import "./PositionController.sol";
+import "./PositionManager.sol";
 import "./LpToken.sol";
 import "./Factory.sol";
 import "./interfaces/IFactory.sol";
 import "./interfaces/ILpPool.sol";
-import "./interfaces/IPositionController.sol";
+import "./interfaces/IPositionManager.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -36,7 +36,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
     modifier onlyExchanger() {
         require(
-            msg.sender == IFactory(factory).getPositionController(),
+            msg.sender == IFactory(factory).getPositionManager(),
             "You are Exchanger of this pool"
         );
         _;
@@ -55,7 +55,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
         if (flag == exchangerCall.yes) {
             require(
-                msg.sender == IFactory(factory).getPositionController(),
+                msg.sender == IFactory(factory).getPositionManager(),
                 "Not allowed to add liquidity as a trader"
             );
         }
@@ -141,7 +141,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
         if (flag == exchangerCall.yes) {
             require(
-                msg.sender == IFactory(factory).getPositionController(),
+                msg.sender == IFactory(factory).getPositionManager(),
                 "Not allowed to remove liquidity as a trader"
             );
         }
@@ -213,9 +213,9 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
     function getPotentialSupply() public view returns (uint256 _qty) {
         // potential supply: supply + unrealized pnl from position manager
-        address positionController = IFactory(factory).getPositionController();
-        (bool isPositive, uint256 potentialSupply) = IPositionController(
-            positionController
+        address positionManager = IFactory(factory).getPositionManager();
+        (bool isPositive, uint256 potentialSupply) = IPositionManager(
+            positionManager
         ).getTotalUnrealizedPnl();
 
         _qty = isPositive

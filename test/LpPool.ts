@@ -54,23 +54,23 @@ describe("LP Pool", function () {
         const feePotAddress = await FactoryContract.getFeePot();
         console.log("Fee pot Deployed; address: ", feePotAddress);
 
-        //await FactoryContract.createPositionController();
-        const PositionController = await ethers.getContractFactory(
-            "PositionController"
+        //await FactoryContract.createPositionManager();
+        const PositionManager = await ethers.getContractFactory(
+            "PositionManager"
         );
-        const PositionControllerContract = await PositionController.deploy(
+        const PositionManagerContract = await PositionManager.deploy(
             FactoryContract.address,
             USDC.address,
             lpPoolAddress
         );
-        await PositionControllerContract.deployed();
+        await PositionManagerContract.deployed();
 
-        const positionControllerAddress = PositionControllerContract.address;
+        const positionManagerAddress = PositionManagerContract.address;
         console.log(
-            "Position Controller Deployed; address: ",
-            positionControllerAddress
+            "Position Manager Deployed; address: ",
+            positionManagerAddress
         );
-        await FactoryContract.setPositionController(positionControllerAddress);
+        await FactoryContract.setPositionManager(positionManagerAddress);
 
         await LpPoolContract.setFeeTier(30, 0);
         await LpPoolContract.setFeeTier(10, 1);
@@ -92,16 +92,16 @@ describe("LP Pool", function () {
             convertUnit("100000000", 18)
         );
 
-        await PositionControllerContract.addMarket("NFT1", 20 * 10 ** 2, 500);
-        await PositionControllerContract.addMarket("NFT2", 20 * 10 ** 2, 500);
-        await PositionControllerContract.addMarket("NFT3", 20 * 10 ** 2, 500);
+        await PositionManagerContract.addMarket("NFT1", 20 * 10 ** 2, 500);
+        await PositionManagerContract.addMarket("NFT2", 20 * 10 ** 2, 500);
+        await PositionManagerContract.addMarket("NFT3", 20 * 10 ** 2, 500);
 
         return {
             USDC,
             PriceOracleContract,
             FactoryContract,
             LpPoolContract,
-            PositionControllerContract,
+            PositionManagerContract,
             FeePotContract,
             owner,
             addr1,
@@ -123,7 +123,7 @@ describe("LP Pool", function () {
                 PriceOracleContract,
                 FactoryContract,
                 LpPoolContract,
-                PositionControllerContract,
+                PositionManagerContract,
                 FeePotContract,
                 owner,
                 addr1,
@@ -152,7 +152,7 @@ describe("LP Pool", function () {
                 PriceOracleContract,
                 FactoryContract,
                 LpPoolContract,
-                PositionControllerContract,
+                PositionManagerContract,
                 FeePotContract,
                 owner,
                 addr1,
@@ -167,7 +167,7 @@ describe("LP Pool", function () {
                 PriceOracleContract,
                 FactoryContract,
                 LpPoolContract,
-                PositionControllerContract,
+                PositionManagerContract,
                 FeePotContract,
                 owner,
                 addr1,
@@ -197,7 +197,7 @@ describe("LP Pool", function () {
                 PriceOracleContract,
                 FactoryContract,
                 LpPoolContract,
-                PositionControllerContract,
+                PositionManagerContract,
                 FeePotContract,
                 owner,
                 addr1,
@@ -214,7 +214,7 @@ describe("LP Pool", function () {
                 PriceOracleContract,
                 FactoryContract,
                 LpPoolContract,
-                PositionControllerContract,
+                PositionManagerContract,
                 FeePotContract,
                 owner,
                 addr1,
@@ -255,7 +255,7 @@ describe("LP Pool", function () {
                 PriceOracleContract,
                 FactoryContract,
                 LpPoolContract,
-                PositionControllerContract,
+                PositionManagerContract,
                 FeePotContract,
                 owner,
                 addr1,
@@ -272,7 +272,7 @@ describe("LP Pool", function () {
                 PriceOracleContract,
                 FactoryContract,
                 LpPoolContract,
-                PositionControllerContract,
+                PositionManagerContract,
                 FeePotContract,
                 owner,
                 addr1,

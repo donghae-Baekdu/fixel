@@ -4,17 +4,17 @@ pragma solidity ^0.8.9;
 interface IFactory {
     event SetLpPool(address poolAddress);
 
-    event SetPositionController(
-        address positionControllerAddress
+    event SetPositionManager(
+        address positionManagerAddress
     );
 
     event SetFeePot(address feePotAddress);
 
     event SetPriceOracle(address priceOracleAddress);
 
-    function setPositionController(address _positionController) external;
+    function setPositionManager(address _positionManager) external;
 
-    function getPositionController() external view returns (address);
+    function getPositionManager() external view returns (address);
 
     function getLpPool() external view returns (address);
 

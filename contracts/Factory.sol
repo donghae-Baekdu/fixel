@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 
 import "./interfaces/ILpPool.sol";
 import "./interfaces/IFeePot.sol";
-import "./interfaces/IPositionController.sol";
+import "./interfaces/IPositionManager.sol";
 import "./interfaces/IPriceOracle.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IFactory.sol";
@@ -15,17 +15,17 @@ contract Factory is Ownable, IFactory {
     uint80 defaultLpFeeTier; // bp
 
     ILpPool public lpPool;
-    IPositionController public positionController;
+    IPositionManager public positionManager;
     IPriceOracle public priceOracle;
     IFeePot public feePot;
 
-    function setPositionController(address _positionController) external onlyOwner {
-        positionController = IPositionController(_positionController);
-        emit SetPositionController(_positionController);
+    function setPositionManager(address _positionManager) external onlyOwner {
+        positionManager = IPositionManager(_positionManager);
+        emit SetPositionManager(_positionManager);
     }
 
-    function getPositionController() external view returns (address) {
-        return address(positionController);
+    function getPositionManager() external view returns (address) {
+        return address(positionManager);
     }
 
     function getLpPool() external view returns (address) {

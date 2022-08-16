@@ -29,17 +29,17 @@ async function main() {
     const lpPoolAddress = await FactoryContract.getLpPool();
     await FactoryContract.createFeePot();
     const feePotAddress = await FactoryContract.getFeePot();
-    await FactoryContract.createPositionController();
-    const positionControllerAddress =
-        await FactoryContract.getPositionController();
+    await FactoryContract.createPositionManager();
+    const positionManagerAddress =
+        await FactoryContract.getPositionManager();
     const LpPool = await ethers.getContractFactory("LpPool");
     const LpPoolContract = await LpPool.attach(lpPoolAddress);
     console.log("check!");
-    const PositionController = await ethers.getContractFactory(
-        "PositionController"
+    const PositionManager = await ethers.getContractFactory(
+        "PositionManager"
     );
-    const PositionControllerContract = await PositionController.attach(
-        positionControllerAddress
+    const PositionManagerContract = await PositionManager.attach(
+        positionManagerAddress
     );
 
     await FactoryContract.addMarket("NFT1", 20 * 10 ** 2, 500);
@@ -49,13 +49,13 @@ async function main() {
     const FeePot = await ethers.getContractFactory("FeePot");
     const FeePotContract = await FeePot.attach(feePotAddress);
     //await USDC.approve(lpPoolAddress, ethers.utils.parseUnits("100000000", 18));
-    console.log(USDC.address, PriceOracleContract.address, FactoryContract.address, LpPoolContract.address, PositionControllerContract.address, FeePotContract.address)
+    console.log(USDC.address, PriceOracleContract.address, FactoryContract.address, LpPoolContract.address, PositionManagerContract.address, FeePotContract.address)
     return {
         USDC,
         PriceOracleContract,
         FactoryContract,
         LpPoolContract,
-        PositionControllerContract,
+        PositionManagerContract,
         FeePotContract,
     };
 }

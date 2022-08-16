@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./interfaces/IPriceOracle.sol";
 import "./interfaces/IFactory.sol";
 import "./interfaces/ILpPool.sol";
-import "./interfaces/IPositionController.sol";
+import "./interfaces/IPositionManager.sol";
 import "hardhat/console.sol";
 
 //TODO: calculate funding fee -> complete
@@ -15,7 +15,7 @@ import "hardhat/console.sol";
 
 //TODO: change margin structure
 //TODO: add sign to currentMargin, consider negative balance
-contract PositionController is ERC721Enumerable, Ownable, IPositionController {
+contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
     using SafeMath for uint256;
     using SafeMath for uint32;
 

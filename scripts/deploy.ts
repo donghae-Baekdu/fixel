@@ -59,28 +59,28 @@ async function main() {
     await LpPoolContract.setFeeTier(10, 1);
     console.log("setFee");
 
-    const PositionController = await ethers.getContractFactory(
-        "PositionController"
+    const PositionManager = await ethers.getContractFactory(
+        "PositionManager"
     );
     console.log("PC deploy start");
     await delay(3000);
-    const PositionControllerContract = await PositionController.deploy(
+    const PositionManagerContract = await PositionManager.deploy(
         FactoryContract.address,
         USDC.address,
         lpPoolAddress
     );
-    await PositionControllerContract.deployed();
+    await PositionManagerContract.deployed();
     console.log("PC deployed");
     await delay(3000);
-    await PositionControllerContract.addMarket("NFT1", 20 * 10 ** 2, 500);
+    await PositionManagerContract.addMarket("NFT1", 20 * 10 ** 2, 500);
     await delay(3000);
-    await PositionControllerContract.addMarket("NFT2", 20 * 10 ** 2, 500);
+    await PositionManagerContract.addMarket("NFT2", 20 * 10 ** 2, 500);
     await delay(3000);
-    await PositionControllerContract.addMarket("NFT3", 20 * 10 ** 2, 500);
+    await PositionManagerContract.addMarket("NFT3", 20 * 10 ** 2, 500);
     console.log("add markets to PC");
     await delay(3000);
-    await FactoryContract.setPositionController(
-        PositionControllerContract.address
+    await FactoryContract.setPositionManager(
+        PositionManagerContract.address
     );
     console.log("set pc to fac");
 
@@ -92,7 +92,7 @@ async function main() {
         PriceOracleContract.address,
         FactoryContract.address,
         LpPoolContract.address,
-        PositionControllerContract.address,
+        PositionManagerContract.address,
         FeePotContract.address
     );
     return {
@@ -100,7 +100,7 @@ async function main() {
         PriceOracleContract,
         FactoryContract,
         LpPoolContract,
-        PositionControllerContract,
+        PositionManagerContract,
         FeePotContract,
     };
 }
