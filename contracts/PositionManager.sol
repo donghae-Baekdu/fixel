@@ -66,6 +66,10 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             USDC.balanceOf(msg.sender) >= liquidity,
             "Insufficient Balance"
         );
+        require(
+            leverage <= marketInfo[marketId].maxLeverage,
+            "Excessive Leverage"
+        );
 
         ILpPool poolContract = ILpPool(factoryContract.getLpPool());
         IPriceOracle priceOracle = IPriceOracle(
@@ -75,22 +79,21 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         uint256 margin = poolContract.addLiquidity(
             msg.sender,
             liquidity,
+            liquidity.mul(leverage),
             ILpPool.exchangerCall.yes
         );
-        uint256 price = priceOracle.getPrice(marketId);
 
-        require(
-            leverage <= marketInfo[marketId].maxLeverage,
-            "Excessive Leverage"
-        );
+        uint256 price = priceOracle.getPrice(marketId);
 
         uint256 tokenId = totalSupply();
         _mint(msg.sender, tokenId);
+
         positions[tokenId] = Position(
             marketId,
-            leverage,
             margin,
+            margin.mul(leverage),
             price,
+            margin.mul(leverage).div(price).div(uint(10)**LEVERAGE_DECIMAL),
             uint256(0),
             accFundingFee[marketId].accRate,
             uint256(block.timestamp),
@@ -163,24 +166,20 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         require(positions[tokenId].status == Status.OPEN, "Alread Closed");
         uint256 currentPrice = IPriceOracle(factoryContract.getPriceOracle())
             .getPrice(positions[tokenId].marketId);
-        uint256 multiplier = positions[tokenId]
-            .leverage
-            .mul(positions[tokenId].margin)
-            .div(positions[tokenId].price)
-            .div(uint256(10)**LEVERAGE_DECIMAL);
+
         if (positions[tokenId].side == Side.LONG) {
             if (currentPrice > positions[tokenId].price) {
                 return
                     positions[tokenId].margin.add(
                         (currentPrice.sub(positions[tokenId].price)).mul(
-                            multiplier
+                            positions[tokenId].factor
                         )
                     );
             } else {
                 return
                     positions[tokenId].margin.sub(
                         (positions[tokenId].price.sub(currentPrice)).mul(
-                            multiplier
+                            positions[tokenId].factor
                         )
                     );
             }
@@ -189,14 +188,14 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                 return
                     positions[tokenId].margin.sub(
                         (currentPrice.sub(positions[tokenId].price)).mul(
-                            multiplier
+                            positions[tokenId].factor
                         )
                     );
             } else {
                 return
                     positions[tokenId].margin.add(
                         (positions[tokenId].price.sub(currentPrice)).mul(
-                            multiplier
+                            positions[tokenId].factor
                         )
                     );
             }
@@ -212,17 +211,10 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             positions[tokenId].side,
             TradeType.CLOSE,
             positions[tokenId].margin,
-            positions[tokenId].margin.mul(positions[tokenId].leverage).div(
-                positions[tokenId].price
-            )
+            positions[tokenId].factor
         );
 
         ValueWithSign memory pnl;
-
-        uint256 factor = positions[tokenId]
-            .margin
-            .mul(positions[tokenId].leverage)
-            .div(positions[tokenId].price);
 
         if (positions[tokenId].side == Side.LONG) {
             if (marketStatus[marketId].lastPrice > positions[tokenId].price) {
@@ -231,14 +223,14 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                     marketStatus[marketId].lastPrice.sub(
                         positions[tokenId].price
                     )
-                ).mul(factor).div(uint256(10)**LEVERAGE_DECIMAL);
+                ).mul(positions[tokenId].factor);
             } else {
                 pnl.sign = Sign.NEG;
                 pnl.value = (
                     positions[tokenId].price.sub(
                         marketStatus[marketId].lastPrice
                     )
-                ).mul(factor).div(uint256(10)**LEVERAGE_DECIMAL);
+                ).mul(positions[tokenId].factor);
             }
         } else {
             if (marketStatus[marketId].lastPrice > positions[tokenId].price) {
@@ -247,63 +239,63 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                     marketStatus[marketId].lastPrice.sub(
                         positions[tokenId].price
                     )
-                ).mul(factor).div(uint256(10)**LEVERAGE_DECIMAL);
+                ).mul(positions[tokenId].factor);
             } else {
                 pnl.sign = Sign.POS;
                 pnl.value = (
                     positions[tokenId].price.sub(
                         marketStatus[marketId].lastPrice
                     )
-                ).mul(factor).div(uint256(10)**LEVERAGE_DECIMAL);
+                ).mul(positions[tokenId].factor);
             }
         }
 
-        (Sign fundingFeeSign, uint256 fundingFee) = calculatePositionFundingFee(
-            tokenId
-        );
-        (pnl.sign, pnl.value) = calculateUnsignedAdd(
+        (Sign deltaSign, uint256 delta) = calculatePositionFundingFee(tokenId);
+        (deltaSign, delta) = calculateUnsignedAdd(
             pnl.sign,
             pnl.value,
-            fundingFeeSign,
-            fundingFee
+            deltaSign,
+            delta
         );
+
         address lpPoolAddress = factoryContract.getLpPool();
         uint256 receiveAmount;
 
-        if (pnl.sign == Sign.POS) {
-            (
-                marketStatus[marketId].pnlSign,
-                marketStatus[marketId].unrealizedPnl
-            ) = calculateUnsignedAdd(
-                marketStatus[marketId].pnlSign,
-                marketStatus[marketId].unrealizedPnl,
-                Sign.NEG,
-                pnl.value
-            );
-            ILpPool(lpPoolAddress).mint(address(this), pnl.value);
+        (
+            marketStatus[marketId].pnlSign,
+            marketStatus[marketId].unrealizedPnl
+        ) = calculateUnsignedSub(
+            marketStatus[marketId].pnlSign,
+            marketStatus[marketId].unrealizedPnl,
+            pnl.sign,
+            pnl.value
+        );
+
+        (, uint256 closeAmount) = calculateUnsignedAdd(
+            Sign.POS,
+            positions[tokenId].notionalValue,
+            pnl.sign,
+            pnl.value
+        );
+
+        if (deltaSign == Sign.POS) {
+            ILpPool(lpPoolAddress).mint(address(this), delta);
 
             receiveAmount = ILpPool(lpPoolAddress).removeLiquidity(
                 ownerOf(tokenId),
-                positions[tokenId].margin.add(pnl.value),
+                positions[tokenId].margin.add(delta),
+                closeAmount,
                 ILpPool.exchangerCall.yes
             );
         } else {
-            (
-                marketStatus[marketId].pnlSign,
-                marketStatus[marketId].unrealizedPnl
-            ) = calculateUnsignedAdd(
-                marketStatus[marketId].pnlSign,
-                marketStatus[marketId].unrealizedPnl,
-                Sign.POS,
-                pnl.value
-            );
-            uint256 burnAmount = pnl.value > positions[marketId].margin
+            uint256 burnAmount = delta > positions[marketId].margin
                 ? positions[marketId].margin
-                : pnl.value;
+                : delta;
             ILpPool(lpPoolAddress).burn(address(this), burnAmount);
             receiveAmount = ILpPool(lpPoolAddress).removeLiquidity(
                 ownerOf(tokenId),
                 positions[tokenId].margin.sub(burnAmount),
+                closeAmount,
                 ILpPool.exchangerCall.yes
             );
         }
@@ -361,7 +353,6 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             }
         }
     }
-
     function addMarket(
         string memory _name,
         uint32 _maxLeverage,
@@ -468,8 +459,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                 .mul(currentPrice.sub(marketStatus[marketId].lastPrice));
 
             if (longPositionsProfit > shortPositionsLoss) {
-                uint256 profit = (longPositionsProfit.sub(shortPositionsLoss))
-                    .div(uint256(10)**LEVERAGE_DECIMAL);
+                uint256 profit = longPositionsProfit.sub(shortPositionsLoss);
                 if (marketStatus[marketId].pnlSign == Sign.POS) {
                     pnl = marketStatus[marketId].unrealizedPnl.add(profit);
                 } else {
@@ -481,8 +471,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                     }
                 }
             } else {
-                uint256 loss = (shortPositionsLoss.sub(longPositionsProfit))
-                    .div(uint256(10)**LEVERAGE_DECIMAL);
+                uint256 loss = shortPositionsLoss.sub(longPositionsProfit);
                 if (marketStatus[marketId].pnlSign == Sign.NEG) {
                     pnl = marketStatus[marketId].unrealizedPnl.add(loss);
                 } else {
@@ -503,8 +492,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                 .mul(marketStatus[marketId].lastPrice.sub(currentPrice));
 
             if (shortPositionsProfit > longPositionsLoss) {
-                uint256 profit = (shortPositionsProfit.sub(longPositionsLoss))
-                    .div(uint256(10)**LEVERAGE_DECIMAL);
+                uint256 profit = shortPositionsProfit.sub(longPositionsLoss);
                 if (marketStatus[marketId].pnlSign == Sign.POS) {
                     pnl = marketStatus[marketId].unrealizedPnl.add(profit);
                 } else {
@@ -516,8 +504,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                     }
                 }
             } else {
-                uint256 loss = (longPositionsLoss.sub(shortPositionsProfit))
-                    .div(uint256(10)**LEVERAGE_DECIMAL);
+                uint256 loss = longPositionsLoss.sub(shortPositionsProfit);
                 if (marketStatus[marketId].pnlSign == Sign.NEG) {
                     pnl = marketStatus[marketId].unrealizedPnl.add(loss);
                 } else {
@@ -553,11 +540,9 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             positions[tokenId].initialAccFundingFee
         );
         //TODO: should re-write after applying notional value
-        fundingFee = positions[tokenId]
-            .margin
-            .mul(positions[tokenId].leverage)
-            .mul(resNum)
-            .div(uint256(10)**FUNDING_RATE_DECIMAL);
+        fundingFee = positions[tokenId].notionalValue.mul(resNum).div(
+            uint256(10)**FUNDING_RATE_DECIMAL
+        );
         if (positions[tokenId].side == Side.LONG) {
             if (resSign == Sign.POS) {
                 sign = Sign.NEG;
