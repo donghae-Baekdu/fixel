@@ -23,12 +23,14 @@ interface ILpPool {
     function addLiquidity(
         address user,
         uint256 depositQty,
+        uint256 notionalValue,
         exchangerCall flag
     ) external returns (uint256 lpTokenQty);
 
     function removeLiquidity(
         address user,
         uint256 lpTokenQty,
+        uint256 notionalValue,
         exchangerCall flag
     ) external returns (uint256 withdrawQty);
 
@@ -39,15 +41,17 @@ interface ILpPool {
         view
         returns (uint80 _fee, uint80 _feeTierDenom);
 
-    function getAmountToWithdraw(uint256 lpTokenQty, exchangerCall flag)
-        external
-        view
-        returns (uint256 _amountToWithdraw, uint256 _totalFee);
+    function getAmountToWithdraw(
+        uint256 lpTokenQty,
+        uint256 notionalValue,
+        exchangerCall flag
+    ) external view returns (uint256 _amountToWithdraw, uint256 _totalFee);
 
-    function getAmountToMint(uint256 depositQty, exchangerCall flag)
-        external
-        view
-        returns (uint256 _amountToMint, uint256 _totalFee);
+    function getAmountToMint(
+        uint256 depositQty,
+        uint256 notionalValue,
+        exchangerCall flag
+    ) external view returns (uint256 _amountToMint, uint256 _totalFee);
 
     function mint(address to, uint256 value) external;
 

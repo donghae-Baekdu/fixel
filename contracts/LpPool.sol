@@ -45,6 +45,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
     function addLiquidity(
         address user,
         uint256 depositQty,
+        uint256 notionalValue, // unit is collateral
         exchangerCall flag
     ) external returns (uint256 _lpTokenQty) {
         require(
@@ -69,6 +70,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
         (uint256 amountToMint, uint256 totalFeeQty) = getAmountToMint(
             depositQty,
+            notionalValue,
             flag
         );
 
@@ -99,21 +101,21 @@ contract LpPool is LpToken, ILpPool, Ownable {
         emit LiquidityAdded(user, depositQty, amountToMint);
     }
 
-    function getAmountToMint(uint256 depositQty, exchangerCall flag)
-        public
-        view
-        returns (uint256 _amountToMint, uint256 _totalFee)
-    {
+    function getAmountToMint(
+        uint256 depositQty,
+        uint256 notionalValue,
+        exchangerCall flag
+    ) public view returns (uint256 _amountToMint, uint256 _totalFee) {
         uint80 feeTier = flag == exchangerCall.yes
             ? defaultExchangeFeeTier
             : defaultLpFeeTier;
 
-        // charge fee (send 30% to fee pot)
-        uint256 amountToExchange = depositQty
-            .mul(feeTierDenom.sub(feeTier))
-            .div(feeTierDenom);
+        _totalFee = notionalValue.sub(
+            notionalValue.mul(feeTierDenom.sub(feeTier)).div(feeTierDenom)
+        );
 
-        _totalFee = depositQty.sub(amountToExchange);
+        // charge fee (send 30% to fee pot)
+        uint256 amountToExchange = depositQty.sub(_totalFee);
 
         uint256 potentialSupply = getPotentialSupply();
         uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
@@ -129,6 +131,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
     function removeLiquidity(
         address user,
         uint256 lpTokenQty,
+        uint256 notionalValue, // unit is lp token
         exchangerCall flag
     ) external returns (uint256 _withdrawQty) {
         require(
@@ -153,6 +156,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
         (uint256 amountToWithdraw, uint256 totalFeeQty) = getAmountToWithdraw(
             lpTokenQty,
+            notionalValue,
             flag
         );
 
@@ -177,31 +181,34 @@ contract LpPool is LpToken, ILpPool, Ownable {
         emit LiquidityRemoved(user, amountToWithdraw, lpTokenQty);
     }
 
-    function getAmountToWithdraw(uint256 lpTokenQty, exchangerCall flag)
-        public
-        view
-        returns (uint256 _amountToWithdraw, uint256 _totalFee)
-    {
+    function getAmountToWithdraw(
+        uint256 lpTokenQty,
+        uint256 notionalValue,
+        exchangerCall flag
+    ) public view returns (uint256 _amountToWithdraw, uint256 _totalFee) {
         uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
             address(this)
-        );
-
-        // get lp token price
-        uint256 potentialSupply = getPotentialSupply();
-        // delta GD / GD supply * Collateral locked (decimals is USDC's decimals)
-        uint256 amountFromExchange = lpTokenQty.mul(collateralLocked).div(
-            potentialSupply
         );
 
         uint80 feeTier = flag == exchangerCall.yes
             ? defaultExchangeFeeTier
             : defaultLpFeeTier;
 
-        _amountToWithdraw = amountFromExchange
-            .mul(feeTierDenom.sub(feeTier))
-            .div(feeTierDenom);
+        // get lp token price
+        uint256 potentialSupply = getPotentialSupply();
+        // delta GD / GD supply * Collateral locked (decimals is USDC's decimals)
+        uint256 lpFeeQty = notionalValue.sub(
+            notionalValue.mul(feeTierDenom.sub(feeTier)).div(feeTierDenom)
+        );
+        uint256 amountFromExchange = lpTokenQty.mul(collateralLocked).div(
+            potentialSupply
+        );
 
-        _totalFee = amountFromExchange.sub(_amountToWithdraw);
+        _totalFee = amountFromExchange.sub(
+            amountFromExchange.mul(lpTokenQty.sub(lpFeeQty)).div(lpTokenQty)
+        );
+
+        _amountToWithdraw = amountFromExchange.sub(_totalFee);
     }
 
     function getPotentialSupply() public view returns (uint256 _qty) {
