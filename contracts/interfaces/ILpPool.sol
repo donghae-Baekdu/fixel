@@ -39,11 +39,7 @@ interface ILpPool {
     function getAmountToMint(uint256 depositQty, uint256 notionalValue)
         external
         view
-        returns (
-            uint256 _amountToMint,
-            uint256 _notionalValueInLpToken,
-            uint256 _potentialSupply
-        );
+        returns (uint256 _amountToMint, uint256 _notionalValueInLpToken);
 
     function removeLiquidity(
         address user,

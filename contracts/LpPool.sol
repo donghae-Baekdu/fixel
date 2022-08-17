@@ -66,12 +66,10 @@ contract LpPool is LpToken, ILpPool, Ownable {
                 "Not allowed to add liquidity as a trader"
             );
 
-            uint256 potentialSupply;
-            (
-                _amountToMint,
-                _notionalValueInLpToken,
-                potentialSupply
-            ) = getAmountToMint(depositQty, notionalValue);
+            (_amountToMint, _notionalValueInLpToken) = getAmountToMint(
+                depositQty,
+                notionalValue
+            );
 
             // transfer from user to lp pool
             IERC20(underlyingToken).safeTransferFrom(
@@ -101,13 +99,10 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
             uint256 totalFee = collectLpFee(notionalValue);
 
-            uint256 potentialSupply;
-
-            (
-                _amountToMint,
-                _notionalValueInLpToken,
-                potentialSupply
-            ) = getAmountToMint(notionalValue, notionalValue);
+            (_amountToMint, _notionalValueInLpToken) = getAmountToMint(
+                notionalValue,
+                notionalValue
+            );
 
             // transfer from user to lp pool
             IERC20(underlyingToken).safeTransferFrom(
@@ -142,19 +137,18 @@ contract LpPool is LpToken, ILpPool, Ownable {
         view
         returns (
             uint256 _amountToMint, // lp token unit
-            uint256 _notionalValueInLpToken, // lp token unit
-            uint256 _potentialSupply // lp token unit
+            uint256 _notionalValueInLpToken // lp token unit
         )
     {
-        _potentialSupply = getPotentialSupply();
+        uint256 potentialSupply = getPotentialSupply();
 
         _amountToMint = collateralToLpTokenConvertUnit(
-            _potentialSupply,
+            potentialSupply,
             depositQty
         );
 
         _notionalValueInLpToken = collateralToLpTokenConvertUnit(
-            _potentialSupply,
+            potentialSupply,
             notionalValue
         );
     }
@@ -177,10 +171,8 @@ contract LpPool is LpToken, ILpPool, Ownable {
                 msg.sender == IFactory(factory).getPositionManager(),
                 "Not allowed to remove liquidity as a trader"
             );
-            uint256 potentialSupply;
-            (_amountToWithdraw, potentialSupply) = getAmountToWithdraw(
-                liquidity
-            );
+
+            (_amountToWithdraw, ) = getAmountToWithdraw(liquidity);
 
             // transfer from pool to user
             IERC20(underlyingToken).transfer(user, _amountToWithdraw);
@@ -233,7 +225,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
                 "Not able to remove liquidity. Too high leverage."
             );
 
-            // TODO: transfer liquidity out if available
+            // transfer liquidity out if available
             IERC20(underlyingToken).transfer(user, liquidity);
             collateralLocked -= liquidity;
 
