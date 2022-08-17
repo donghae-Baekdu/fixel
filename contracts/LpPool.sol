@@ -28,13 +28,6 @@ contract LpPool is LpToken, ILpPool, Ownable {
     uint80 defaultExchangeFeeTier; // bp
     uint80 defaultLpFeeTier; // bp
 
-    struct Position {
-        uint256 margin; // collateral unit
-        uint256 notionalEntryAmount; // collateral unit
-        uint256 lpPositionSize; // lp token unit
-    }
-    // debt = notionalEntryAmount - margin
-
     uint256 collateralLocked;
     mapping(address => Position) positions;
 

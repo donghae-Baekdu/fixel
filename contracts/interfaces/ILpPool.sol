@@ -95,4 +95,6 @@ interface ILpPool {
     ) external view returns (uint256 _collateral);
 
     function liquidate(address user) external;
+
+    function underlyingToken() external view returns (address);
 }
