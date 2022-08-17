@@ -24,10 +24,19 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
     uint80 public constant feeTierDenom = 10000;
     uint80 public constant initialExachangeRate = 1; // GD -> USD
-    uint80 public constant toFeePotProportion = 3000;
     uint80 public MINIMUM_UNDERLYING;
     uint80 defaultExchangeFeeTier; // bp
     uint80 defaultLpFeeTier; // bp
+
+    struct Position {
+        uint256 margin; // collateral unit
+        uint256 notionalEntryAmount; // collateral unit
+        uint256 lpPositionSize; // lp token unit
+    }
+    // debt = notionalEntryAmount - margin
+
+    uint256 collateralLocked;
+    mapping(address => Position) positions;
 
     constructor(address _underlyingToken, address _factory) public {
         underlyingToken = _underlyingToken;
@@ -37,178 +46,226 @@ contract LpPool is LpToken, ILpPool, Ownable {
     modifier onlyExchanger() {
         require(
             msg.sender == IFactory(factory).getPositionManager(),
-            "You are Exchanger of this pool"
+            "You are not Exchanger of this pool"
         );
         _;
     }
 
     function addLiquidity(
         address user,
-        uint256 depositQty,
+        uint256 depositQty, // unit is collateral
         uint256 notionalValue, // unit is collateral
         exchangerCall flag
-    ) external returns (uint256 _lpTokenQty) {
+    )
+        external
+        returns (uint256 _amountToMint, uint256 _notionalValueInLpToken)
+    {
         require(
             flag == exchangerCall.yes || flag == exchangerCall.no,
             "Improper flag"
         );
 
-        if (flag == exchangerCall.yes) {
+        bool isExchangerCall = flag == exchangerCall.yes;
+
+        if (isExchangerCall) {
             require(
                 msg.sender == IFactory(factory).getPositionManager(),
                 "Not allowed to add liquidity as a trader"
             );
-        }
 
-        if (flag == exchangerCall.no) {
-            // amount to transfer is less than balance
+            uint256 potentialSupply;
+            (
+                _amountToMint,
+                _notionalValueInLpToken,
+                potentialSupply
+            ) = getAmountToMint(depositQty, notionalValue, isExchangerCall);
+
+            // transfer from user to lp pool
+            IERC20(underlyingToken).safeTransferFrom(
+                user,
+                address(this),
+                depositQty
+            );
+
+            collateralLocked += depositQty;
+
+            // mint token
+            if (_amountToMint != 0) {
+                _mint(msg.sender, _amountToMint);
+            }
+
+            emit LiquidityAdded(
+                user,
+                depositQty,
+                _amountToMint,
+                _notionalValueInLpToken
+            );
+        } else {
             require(
-                IERC20(underlyingToken).balanceOf(user) >= depositQty, // 이거 틀림
+                IERC20(underlyingToken).balanceOf(user) >= depositQty,
                 "Not Enough Balance To Deposit"
             );
+
+            uint256 totalFee = collectLpFee(notionalValue);
+
+            uint256 potentialSupply;
+
+            (
+                _amountToMint,
+                _notionalValueInLpToken,
+                potentialSupply
+            ) = getAmountToMint(notionalValue, notionalValue, isExchangerCall);
+
+            // transfer from user to lp pool
+            IERC20(underlyingToken).safeTransferFrom(
+                user,
+                address(this),
+                depositQty
+            );
+
+            collateralLocked += notionalValue;
+            positions[user].notionalEntryAmount += notionalValue;
+
+            positions[user].margin += depositQty;
+            positions[user].margin -= totalFee;
+
+            // mint token
+            if (_amountToMint != 0) {
+                _mint(msg.sender, _amountToMint);
+                positions[user].lpPositionSize += _amountToMint;
+            }
+
+            emit LiquidityAdded(
+                user,
+                depositQty,
+                _amountToMint,
+                _notionalValueInLpToken
+            );
         }
-
-        (uint256 amountToMint, uint256 totalFeeQty) = getAmountToMint(
-            depositQty,
-            notionalValue,
-            flag
-        );
-
-        // transfer from user to lp pool
-        IERC20(underlyingToken).safeTransferFrom(
-            user,
-            address(this),
-            depositQty
-        );
-
-        uint256 toFeePotQty = totalFeeQty.sub(
-            totalFeeQty.mul(feeTierDenom.sub(toFeePotProportion)).div(
-                feeTierDenom
-            )
-        );
-
-        // transfer from lp pool to fee pot
-        IERC20(underlyingToken).transfer(
-            address(IFactory(factory).getFeePot()),
-            toFeePotQty
-        );
-
-        // mint token
-        _mint(msg.sender, amountToMint);
-
-        _lpTokenQty = amountToMint;
-
-        emit LiquidityAdded(user, depositQty, amountToMint);
     }
 
     function getAmountToMint(
         uint256 depositQty,
         uint256 notionalValue,
-        exchangerCall flag
-    ) public view returns (uint256 _amountToMint, uint256 _totalFee) {
-        uint80 feeTier = flag == exchangerCall.yes
-            ? defaultExchangeFeeTier
-            : defaultLpFeeTier;
+        bool isExchangerCall
+    )
+        public
+        view
+        returns (
+            uint256 _amountToMint,
+            uint256 _notionalValueInLpToken,
+            uint256 _potentialSupply
+        )
+    {
+        _potentialSupply = getPotentialSupply();
 
-        _totalFee = notionalValue.sub(
-            notionalValue.mul(feeTierDenom.sub(feeTier)).div(feeTierDenom)
+        _amountToMint = collateralToLpTokenConvertUnit(
+            _potentialSupply,
+            depositQty
         );
 
-        // charge fee (send 30% to fee pot)
-        uint256 amountToExchange = depositQty.sub(_totalFee);
-
-        uint256 potentialSupply = getPotentialSupply();
-        uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
-            address(this)
+        _notionalValueInLpToken = collateralToLpTokenConvertUnit(
+            _potentialSupply,
+            notionalValue
         );
-
-        // delta Collateral / Collateral locked * GD supply (decimals is GD's decimals)
-        _amountToMint = (potentialSupply == 0 || collateralLocked == 0)
-            ? amountToExchange.div(initialExachangeRate)
-            : amountToExchange.mul(potentialSupply).div(collateralLocked);
     }
 
     function removeLiquidity(
         address user,
-        uint256 lpTokenQty,
+        uint256 liquidity, // lp token if exchanger, collateral if lp manager
         uint256 notionalValue, // unit is lp token
         exchangerCall flag
-    ) external returns (uint256 _withdrawQty) {
+    ) public returns (uint256 _amountToWithdraw) {
         require(
             flag == exchangerCall.yes || flag == exchangerCall.no,
             "Improper flag"
         );
 
-        if (flag == exchangerCall.yes) {
+        bool isExchangerCall = flag == exchangerCall.yes;
+
+        if (isExchangerCall) {
             require(
                 msg.sender == IFactory(factory).getPositionManager(),
                 "Not allowed to remove liquidity as a trader"
             );
-        }
-
-        // amount to transfer is less than balance
-        if (flag == exchangerCall.no) {
-            require(
-                IERC20(address(this)).balanceOf(user) >= lpTokenQty,
-                "Not Enough Balance To Withdraw"
+            uint256 potentialSupply;
+            (_amountToWithdraw, potentialSupply) = getAmountToWithdraw(
+                liquidity
             );
+
+            // transfer from pool to user
+            IERC20(underlyingToken).transfer(user, _amountToWithdraw);
+            collateralLocked -= _amountToWithdraw;
+            // burn lp token
+            _burn(msg.sender, liquidity);
+
+            emit LiquidityRemoved(user, _amountToWithdraw, liquidity);
+        } else {
+            require(
+                msg.sender == address(this),
+                "Not allowed to remove liquidity as a lp"
+            );
+
+            uint256 potentialSupply;
+            (_amountToWithdraw, potentialSupply) = getAmountToWithdraw(
+                notionalValue
+            );
+
+            // collect fee
+            uint256 totalFee = collectLpFee(_amountToWithdraw);
+            _amountToWithdraw -= totalFee;
+            // burn lp token
+            _burn(msg.sender, notionalValue);
+            potentialSupply -= notionalValue;
+            positions[user].lpPositionSize -= notionalValue;
+            if (positions[user].notionalEntryAmount >= _amountToWithdraw) {
+                positions[user].notionalEntryAmount -= _amountToWithdraw;
+            } else {
+                positions[user].margin += _amountToWithdraw;
+                positions[user].margin -= positions[user].notionalEntryAmount;
+
+                positions[user].notionalEntryAmount = 0;
+            }
+            collateralLocked -= _amountToWithdraw;
+
+            require(
+                (
+                    positions[user]
+                        .margin
+                        .add(
+                            lpTokenToCollateralConvertUnit(
+                                potentialSupply,
+                                positions[user].lpPositionSize
+                            )
+                        )
+                        .sub(positions[user].notionalEntryAmount)
+                        .sub(liquidity)
+                ).mul(100).div(positions[user].margin) >= 1,
+                "Not able to remove liquidity. Too high leverage."
+            );
+
+            // TODO: transfer liquidity out if available
+            IERC20(underlyingToken).transfer(user, liquidity);
+            collateralLocked -= liquidity;
+
+            emit LiquidityRemoved(user, _amountToWithdraw, liquidity);
         }
-
-        (uint256 amountToWithdraw, uint256 totalFeeQty) = getAmountToWithdraw(
-            lpTokenQty,
-            notionalValue,
-            flag
-        );
-
-        uint256 toFeePotQty = totalFeeQty.sub(
-            totalFeeQty.mul(feeTierDenom.sub(toFeePotProportion)).div(
-                feeTierDenom
-            )
-        );
-
-        // transfer from pool to user
-        IERC20(underlyingToken).transfer(user, amountToWithdraw);
-        // transfer from lp pool to fee pot
-        IERC20(underlyingToken).transfer(
-            address(IFactory(factory).getFeePot()),
-            toFeePotQty
-        );
-        // burn lp token
-        _burn(msg.sender, lpTokenQty);
-
-        _withdrawQty = amountToWithdraw;
-
-        emit LiquidityRemoved(user, amountToWithdraw, lpTokenQty);
     }
 
     function getAmountToWithdraw(
-        uint256 lpTokenQty,
-        uint256 notionalValue,
-        exchangerCall flag
-    ) public view returns (uint256 _amountToWithdraw, uint256 _totalFee) {
-        uint256 collateralLocked = IERC20(underlyingToken).balanceOf(
-            address(this)
-        );
-
-        uint80 feeTier = flag == exchangerCall.yes
-            ? defaultExchangeFeeTier
-            : defaultLpFeeTier;
-
+        uint256 lpTokenQty // LP token unit
+    )
+        public
+        view
+        returns (uint256 _amountToWithdraw, uint256 _potentialSupply)
+    {
         // get lp token price
-        uint256 potentialSupply = getPotentialSupply();
-        // delta GD / GD supply * Collateral locked (decimals is USDC's decimals)
-        uint256 lpFeeQty = notionalValue.sub(
-            notionalValue.mul(feeTierDenom.sub(feeTier)).div(feeTierDenom)
-        );
-        uint256 amountFromExchange = lpTokenQty.mul(collateralLocked).div(
-            potentialSupply
-        );
+        _potentialSupply = getPotentialSupply();
 
-        _totalFee = amountFromExchange.sub(
-            amountFromExchange.mul(lpTokenQty.sub(lpFeeQty)).div(lpTokenQty)
+        _amountToWithdraw = lpTokenToCollateralConvertUnit(
+            _potentialSupply,
+            lpTokenQty
         );
-
-        _amountToWithdraw = amountFromExchange.sub(_totalFee);
     }
 
     function getPotentialSupply() public view returns (uint256 _qty) {
@@ -223,22 +280,20 @@ contract LpPool is LpToken, ILpPool, Ownable {
             : totalSupply.sub(potentialSupply);
     }
 
-    function setFeeTier(uint80 fee, exchangerCall flag) external onlyOwner {
-        if (flag == exchangerCall.yes) {
+    function setFeeTier(uint80 fee, bool isExchangerCall) external onlyOwner {
+        if (isExchangerCall) {
             defaultExchangeFeeTier = fee;
-        } else if (flag == exchangerCall.no) {
+        } else {
             defaultLpFeeTier = fee;
         }
     }
 
-    function getFeeTier(exchangerCall flag)
+    function getFeeTier(bool isExchangerCall)
         external
         view
         returns (uint80 _fee, uint80 _feeTierDenom)
     {
-        _fee = flag == exchangerCall.yes
-            ? defaultExchangeFeeTier
-            : defaultLpFeeTier;
+        _fee = isExchangerCall ? defaultExchangeFeeTier : defaultLpFeeTier;
         _feeTierDenom = feeTierDenom;
     }
 
@@ -248,5 +303,64 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
     function burn(address to, uint256 value) external onlyExchanger {
         _burn(to, value);
+    }
+
+    function collectExchangeFee(uint256 notionalValue)
+        external
+        onlyExchanger
+        returns (uint256 _totalFee)
+    {
+        _totalFee = notionalValue.sub(
+            notionalValue.mul(feeTierDenom.sub(defaultExchangeFeeTier)).div(
+                feeTierDenom
+            )
+        );
+        _burn(msg.sender, _totalFee);
+    }
+
+    function collectLpFee(
+        uint256 notionalValue // collateral unit
+    ) public view returns (uint256 _totalFee) {
+        _totalFee = notionalValue.sub(
+            notionalValue.mul(feeTierDenom.sub(defaultLpFeeTier)).div(
+                feeTierDenom
+            )
+        );
+    }
+
+    function collateralToLpTokenConvertUnit(
+        uint256 potentialSupply,
+        uint256 collateral
+    ) public view returns (uint256 _lpToken) {
+        // delta Collateral / Collateral locked * GD supply (decimals is GD's decimals)
+        _lpToken = (potentialSupply == 0 || collateralLocked == 0)
+            ? collateral.div(initialExachangeRate)
+            : collateral.mul(potentialSupply).div(collateralLocked);
+    }
+
+    function lpTokenToCollateralConvertUnit(
+        uint256 potentialSupply,
+        uint256 lpToken
+    ) public view returns (uint256 _collateral) {
+        _collateral = lpToken.mul(collateralLocked).div(potentialSupply);
+    }
+
+    function liquidate(address user) external {
+        uint256 potentialSupply = getPotentialSupply();
+        require(
+            (
+                positions[user]
+                    .margin
+                    .add(
+                        lpTokenToCollateralConvertUnit(
+                            potentialSupply,
+                            positions[user].lpPositionSize
+                        )
+                    )
+                    .sub(positions[user].notionalEntryAmount)
+            ).mul(100).div(positions[user].margin) < 1,
+            "Not able to remove liquidity. Too high leverage."
+        );
+        // TODO liquidate
     }
 }

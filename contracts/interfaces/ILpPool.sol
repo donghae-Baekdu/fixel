@@ -11,7 +11,8 @@ interface ILpPool {
     event LiquidityAdded(
         address user,
         uint256 depositedCollateral,
-        uint256 mintedLpToken
+        uint256 mintedLpToken,
+        uint256 notionalValueInLpToken
     );
 
     event LiquidityRemoved(
@@ -25,14 +26,16 @@ interface ILpPool {
         uint256 depositQty,
         uint256 notionalValue,
         exchangerCall flag
-    ) external returns (uint256 lpTokenQty);
+    )
+        external
+        returns (uint256 _exchangedLpToken, uint256 _notionalValueInLpToken);
 
     function removeLiquidity(
         address user,
         uint256 lpTokenQty,
         uint256 notionalValue,
         exchangerCall flag
-    ) external returns (uint256 withdrawQty);
+    ) external returns (uint256 _withdrawQty);
 
     function setFeeTier(uint80 fee, exchangerCall flag) external;
 
@@ -42,20 +45,37 @@ interface ILpPool {
         returns (uint80 _fee, uint80 _feeTierDenom);
 
     function getAmountToWithdraw(
-        uint256 lpTokenQty,
-        uint256 notionalValue,
-        exchangerCall flag
-    ) external view returns (uint256 _amountToWithdraw, uint256 _totalFee);
+        uint256 lpTokenQty, // LP token unit
+        bool isExchangerCall
+    )
+        external
+        view
+        returns (uint256 _amountToWithdraw, uint256 _potentialSupply);
 
     function getAmountToMint(
         uint256 depositQty,
         uint256 notionalValue,
-        exchangerCall flag
-    ) external view returns (uint256 _amountToMint, uint256 _totalFee);
+        bool isExchangerCall
+    )
+        external
+        view
+        returns (
+            uint256 _amountToMint,
+            uint256 _notionalValueInLpToken,
+            uint256 _potentialSupply
+        );
 
     function mint(address to, uint256 value) external;
 
     function burn(address to, uint256 value) external;
 
     function underlyingToken() external view returns (address);
+
+    function collectExchangeFee(uint256 notionalValue)
+        external
+        returns (uint256 _totalFee);
+
+    function collectLpFee(uint256 notionalValue)
+        external
+        returns (uint256 _totalFee);
 }

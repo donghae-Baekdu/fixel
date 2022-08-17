@@ -4,9 +4,7 @@ pragma solidity ^0.8.9;
 interface IFactory {
     event SetLpPool(address poolAddress);
 
-    event SetPositionManager(
-        address positionManagerAddress
-    );
+    event SetPositionManager(address positionManagerAddress);
 
     event SetFeePot(address feePotAddress);
 
