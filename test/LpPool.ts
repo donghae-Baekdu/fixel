@@ -10,13 +10,13 @@ describe("LP Pool", function () {
         const Token = await ethers.getContractFactory("USDC");
         const USDC = await Token.deploy();
         await USDC.deployed();
-        await USDC.mint(owner.address, ethers.utils.parseUnits("1000000", 18));
-        await USDC.mint(addr1.address, ethers.utils.parseUnits("1000000", 18));
-        await USDC.mint(addr2.address, ethers.utils.parseUnits("1000000", 18));
+
+        await USDC.mint(owner.address, ethers.utils.parseUnits("1000000", 6));
+        await USDC.mint(addr1.address, ethers.utils.parseUnits("1000000", 6));
+        await USDC.mint(addr2.address, ethers.utils.parseUnits("1000000", 6));
         console.log(await USDC.balanceOf(owner.address));
         console.log(await USDC.balanceOf(addr1.address));
         console.log(await USDC.balanceOf(addr2.address));
-
         console.log("Token minted");
 
         const PriceOracle = await ethers.getContractFactory("PriceOracle");
@@ -70,19 +70,19 @@ describe("LP Pool", function () {
 
         await USDC.connect(owner).approve(
             LpPoolContract.address,
-            convertUnit("100000000", 18)
+            convertUnit("100000000", 6)
         );
         await USDC.connect(addr1).approve(
             LpPoolContract.address,
-            convertUnit("100000000", 18)
+            convertUnit("100000000", 6)
         );
         await USDC.connect(addr2).approve(
             LpPoolContract.address,
-            convertUnit("100000000", 18)
+            convertUnit("100000000", 6)
         );
         await USDC.connect(addr3).approve(
             LpPoolContract.address,
-            convertUnit("100000000", 18)
+            convertUnit("100000000", 6)
         );
 
         await PositionManagerContract.addMarket("NFT1", 20 * 10 ** 2, 500);
@@ -124,18 +124,18 @@ describe("LP Pool", function () {
 
             await LpPoolContract.connect(addr1).addLiquidity(
                 addr1.address,
-                convertUnit("100", 18),
+                convertUnit("100", 6),
                 1
             );
 
             expect(await LpPoolContract.balanceOf(addr1.address)).to.equal(
-                convertUnit("99.9", 18)
+                convertUnit("99.9", 6)
             );
             expect(await USDC.balanceOf(addr1.address)).to.equal(
-                convertUnit("999900", 18)
+                convertUnit("999900", 6)
             );
             expect(await USDC.balanceOf(LpPoolContract.address)).to.equal(
-                convertUnit("99.97", 18)
+                convertUnit("99.97", 6)
             );
 
             statusCache = {
@@ -166,19 +166,19 @@ describe("LP Pool", function () {
 
             await LpPoolContract.connect(addr2).addLiquidity(
                 addr2.address,
-                convertUnit("100", 18),
+                convertUnit("100", 6),
                 1
             );
             expect(await LpPoolContract.balanceOf(addr2.address)).to.equal(
-                convertUnit("99.9", 18)
-                    .mul(convertUnit("99.9", 18))
-                    .div(convertUnit("99.97", 18))
+                convertUnit("99.9", 6)
+                    .mul(convertUnit("99.9", 6))
+                    .div(convertUnit("99.97", 6))
             );
             expect(await USDC.balanceOf(addr2.address)).to.equal(
-                convertUnit("999900", 18)
+                convertUnit("999900", 6)
             );
             expect(await USDC.balanceOf(LpPoolContract.address)).to.equal(
-                convertUnit("99.97", 18).mul("2")
+                convertUnit("99.97", 6).mul("2")
             );
 
             statusCache = {
@@ -209,7 +209,7 @@ describe("LP Pool", function () {
                 addr3,
             } = statusCache;
 
-            const amountToBurn = convertUnit("50", 18);
+            const amountToBurn = convertUnit("50", 6);
             const addr1PrevBalance = await USDC.balanceOf(addr1.address);
             const totalSupply = await LpPoolContract.totalSupply();
             const lockedUSDC = await USDC.balanceOf(LpPoolContract.address);
@@ -221,11 +221,11 @@ describe("LP Pool", function () {
 
             await LpPoolContract.connect(addr1).removeLiquidity(
                 addr1.address,
-                convertUnit("50", 18),
+                convertUnit("50", 6),
                 1
             );
             expect(await LpPoolContract.balanceOf(addr1.address)).to.equal(
-                convertUnit("49.9", 18)
+                convertUnit("49.9", 6)
             );
             expect(
                 (await USDC.balanceOf(addr1.address)).sub(addr1PrevBalance)
@@ -235,7 +235,7 @@ describe("LP Pool", function () {
             ).to.equal(deltaLocked);
             expect(
                 totalSupply.sub(await LpPoolContract.totalSupply())
-            ).to.equal(convertUnit("50", 18));
+            ).to.equal(convertUnit("50", 6));
 
             statusCache = {
                 USDC,
@@ -268,19 +268,19 @@ describe("LP Pool", function () {
             await expect(
                 LpPoolContract.connect(addr1).addLiquidity(
                     addr1.address,
-                    convertUnit("100", 18),
+                    convertUnit("100", 6),
                     0
                 )
             ).to.be.revertedWith("Not allowed to add liquidity as a trader");
             await LpPoolContract.connect(addr1).addLiquidity(
                 addr1.address,
-                convertUnit("100", 18),
+                convertUnit("100", 6),
                 1
             );
             await expect(
                 LpPoolContract.connect(addr1).removeLiquidity(
                     addr1.address,
-                    convertUnit("10", 18),
+                    convertUnit("10", 6),
                     0
                 )
             ).to.be.revertedWith("Not allowed to remove liquidity as a trader");
