@@ -21,36 +21,20 @@ interface ILpPool {
         uint256 burntLpToken
     );
 
+    struct Position {
+        uint256 margin; // collateral unit
+        uint256 notionalEntryAmount; // collateral unit
+        uint256 lpPositionSize; // lp token unit
+    }
+
+    // debt = notionalEntryAmount - margin
+
     function addLiquidity(
         address user,
-        uint256 depositQty,
-        uint256 notionalValue,
+        uint256 depositQty, // unit is collateral
+        uint256 notionalValue, // unit is collateral
         exchangerCall flag
-    )
-        external
-        returns (uint256 _exchangedLpToken, uint256 _notionalValueInLpToken);
-
-    function removeLiquidity(
-        address user,
-        uint256 lpTokenQty,
-        uint256 notionalValue,
-        exchangerCall flag
-    ) external returns (uint256 _withdrawQty);
-
-    function setFeeTier(uint80 fee, exchangerCall flag) external;
-
-    function getFeeTier(exchangerCall flag)
-        external
-        view
-        returns (uint80 _fee, uint80 _feeTierDenom);
-
-    function getAmountToWithdraw(
-        uint256 lpTokenQty, // LP token unit
-        bool isExchangerCall
-    )
-        external
-        view
-        returns (uint256 _amountToWithdraw, uint256 _potentialSupply);
+    ) external returns (uint256 _amountToMint, uint256 _notionalValueInLpToken);
 
     function getAmountToMint(
         uint256 depositQty,
@@ -65,17 +49,50 @@ interface ILpPool {
             uint256 _potentialSupply
         );
 
+    function removeLiquidity(
+        address user,
+        uint256 liquidity, // lp token if exchanger, collateral if lp manager
+        uint256 notionalValue, // unit is lp token
+        exchangerCall flag
+    ) external returns (uint256 _amountToWithdraw);
+
+    function getAmountToWithdraw(
+        uint256 lpTokenQty // LP token unit
+    )
+        external
+        view
+        returns (uint256 _amountToWithdraw, uint256 _potentialSupply);
+
+    function getPotentialSupply() external view returns (uint256 _qty);
+
+    function setFeeTier(uint80 fee, bool isExchangerCall) external;
+
+    function getFeeTier(bool isExchangerCall)
+        external
+        view
+        returns (uint80 _fee, uint80 _feeTierDenom);
+
     function mint(address to, uint256 value) external;
 
     function burn(address to, uint256 value) external;
-
-    function underlyingToken() external view returns (address);
 
     function collectExchangeFee(uint256 notionalValue)
         external
         returns (uint256 _totalFee);
 
-    function collectLpFee(uint256 notionalValue)
-        external
-        returns (uint256 _totalFee);
+    function collectLpFee(
+        uint256 notionalValue // collateral unit
+    ) external view returns (uint256 _totalFee);
+
+    function collateralToLpTokenConvertUnit(
+        uint256 potentialSupply,
+        uint256 collateral
+    ) external view returns (uint256 _lpToken);
+
+    function lpTokenToCollateralConvertUnit(
+        uint256 potentialSupply,
+        uint256 lpToken
+    ) external view returns (uint256 _collateral);
+
+    function liquidate(address user) external;
 }
