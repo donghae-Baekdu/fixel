@@ -13,7 +13,8 @@ import "hardhat/console.sol";
 //TODO: apply funding fee when close position -> complete
 //TODO: apply funding fee to liquidation condition -> complete
 
-//TODO: change margin structure
+//TODO: change margin structure -> complete
+//TODO: add modify position
 //TODO: add sign to currentMargin, consider negative balance
 contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
     using SafeMath for uint256;
@@ -135,23 +136,10 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
     function liquidate(uint32 marketId, uint256 tokenId) external {
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
 
-        (Sign fundingFeeSign, uint256 fundingFee) = calculatePositionFundingFee(
-            tokenId
-        );
-        uint256 currentMargin = calculateMargin(tokenId);
-
-        if (fundingFeeSign == Sign.POS) {
-            currentMargin = currentMargin.add(fundingFee);
-        } else {
-            if (currentMargin < fundingFee) {
-                currentMargin = 0;
-            } else {
-                currentMargin = currentMargin.sub(fundingFee);
-            }
-        }
+        uint256 currentMargin = calculateMarginWithFundingFee(tokenId);
 
         uint256 marginRatio = currentMargin.mul(uint256(10000)).div(
-            positions[tokenId].margin
+            positions[tokenId].notionalValue
         );
         require(
             marginRatio < marketInfo[marketId].liquidationThreshold,
@@ -160,6 +148,107 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         uint256 returnAmount = _closePosition(marketId, tokenId);
         USDC.transfer(msg.sender, returnAmount);
         emit Liquidation(ownerOf(tokenId), msg.sender, marketId, tokenId);
+    }
+
+    function addMargin(
+        uint256 tokenId,
+        uint256 liquidity,
+        uint256 notionalValue
+    ) external {
+        uint256 currentMargin = calculateMarginWithFundingFee(tokenId);
+        uint256 currentPrice = IPriceOracle(factoryContract.getPriceOracle())
+            .getPrice(positions[tokenId].marketId);
+
+        (uint256 margin, uint256 fee, uint256 notionalValueAsGd) = ILpPool(
+            factoryContract.getLpPool()
+        ).addLiquidity(
+                msg.sender,
+                liquidity,
+                notionalValue,
+                ILpPool.exchangerCall.yes
+            );
+
+        applyFundingFeeToPosition(tokenId);
+
+        positions[tokenId].margin = positions[tokenId].margin.add(
+            margin.sub(fee)
+        );
+        positions[tokenId].price = (
+            positions[tokenId].price.mul(positions[tokenId].notionalValue).add(
+                currentPrice.mul(notionalValueAsGd)
+            )
+        ).div(positions[tokenId].notionalValue.add(notionalValueAsGd));
+        positions[tokenId].notionalValue = positions[tokenId].notionalValue.add(
+            noitonalValueAsGd
+        );
+
+        updateMarketStatusAfterTrade(
+            positions[tokenId].marketId,
+            positions[tokenId].side,
+            TradeType.OPEN,
+            positions[tokenId].margin.sub(fee),
+            (
+                positions[tokenId].notionalValue.div(currentPrice).div(
+                    uint(10)**LEVERAGE_DECIMAL
+                )
+            ).sub(positions[tokenId].factor)
+        );
+
+        positions[tokenId].factor = positions[tokenId]
+            .notionalValue
+            .div(currentPrice)
+            .div(uint(10)**LEVERAGE_DECIMAL);
+    }
+
+    function removeMargin(
+        uint256 tokenId,
+        uint256 liquidity,
+        uint256 notionalValue
+    ) external {
+        uint256 currentMargin = calculateMarginWithFundingFee(tokenId);
+        uint256 currentPrice = IPriceOracle(factoryContract.getPriceOracle())
+            .getPrice(positions[tokenId].marketId);
+
+        //TODO
+        (uint256 margin, uint256 fee, uint256 notionalValueAsGd) = ILpPool(
+            factoryContract.getLpPool()
+        ).removeLiquidity(
+                msg.sender,
+                liquidity,
+                notionalValue,
+                ILpPool.exchangerCall.yes
+            );
+
+        applyFundingFeeToPosition(tokenId);
+
+        positions[tokenId].margin = positions[tokenId].margin.add(
+            margin.sub(fee)
+        );
+        positions[tokenId].price = (
+            positions[tokenId].price.mul(positions[tokenId].notionalValue).add(
+                currentPrice.mul(notionalValueAsGd)
+            )
+        ).div(positions[tokenId].notionalValue.add(notionalValueAsGd));
+        positions[tokenId].notionalValue = positions[tokenId].notionalValue.add(
+            noitonalValueAsGd
+        );
+
+        updateMarketStatusAfterTrade(
+            positions[tokenId].marketId,
+            positions[tokenId].side,
+            TradeType.OPEN,
+            positions[tokenId].margin.sub(fee),
+            (
+                positions[tokenId].notionalValue.div(currentPrice).div(
+                    uint(10)**LEVERAGE_DECIMAL
+                )
+            ).sub(positions[tokenId].factor)
+        );
+
+        positions[tokenId].factor = positions[tokenId]
+            .notionalValue
+            .div(currentPrice)
+            .div(uint(10)**LEVERAGE_DECIMAL);
     }
 
     function calculateMargin(uint256 tokenId) public view returns (uint256) {
@@ -202,10 +291,33 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         }
     }
 
+    function calculateMarginWithFundingFee(uint256 tokenId)
+        public
+        view
+        returns (uint256)
+    {
+        (Sign fundingFeeSign, uint256 fundingFee) = calculatePositionFundingFee(
+            tokenId
+        );
+        uint256 currentMargin = calculateMargin(tokenId);
+
+        if (fundingFeeSign == Sign.POS) {
+            currentMargin = currentMargin.add(fundingFee);
+        } else {
+            if (currentMargin < fundingFee) {
+                currentMargin = 0;
+            } else {
+                currentMargin = currentMargin.sub(fundingFee);
+            }
+        }
+        return currentMargin;
+    }
+
     function _closePosition(uint32 marketId, uint256 tokenId)
         internal
         returns (uint256)
     {
+        applyFundingFeeToPosition(tokenId);
         updateMarketStatusAfterTrade(
             marketId,
             positions[tokenId].side,
@@ -249,7 +361,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                 ).mul(positions[tokenId].factor);
             }
         }
-
+        /*
         (Sign deltaSign, uint256 delta) = calculatePositionFundingFee(tokenId);
         (deltaSign, delta) = calculateUnsignedAdd(
             pnl.sign,
@@ -257,10 +369,11 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             deltaSign,
             delta
         );
-
+        */
         address lpPoolAddress = factoryContract.getLpPool();
         uint256 receiveAmount;
 
+        //realize pnl
         (
             marketStatus[marketId].pnlSign,
             marketStatus[marketId].unrealizedPnl
@@ -278,19 +391,19 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             pnl.value
         );
 
-        if (deltaSign == Sign.POS) {
-            ILpPool(lpPoolAddress).mint(address(this), delta);
+        if (pnl.sign == Sign.POS) {
+            ILpPool(lpPoolAddress).mint(address(this), pnl.value);
 
             receiveAmount = ILpPool(lpPoolAddress).removeLiquidity(
                 ownerOf(tokenId),
-                positions[tokenId].margin.add(delta),
+                positions[tokenId].margin.add(pnl.value),
                 closeAmount,
                 ILpPool.exchangerCall.yes
             );
         } else {
-            uint256 burnAmount = delta > positions[marketId].margin
+            uint256 burnAmount = pnl.value > positions[marketId].margin
                 ? positions[marketId].margin
-                : delta;
+                : pnl.value;
             ILpPool(lpPoolAddress).burn(address(this), burnAmount);
             receiveAmount = ILpPool(lpPoolAddress).removeLiquidity(
                 ownerOf(tokenId),
@@ -353,6 +466,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             }
         }
     }
+
     function addMarket(
         string memory _name,
         uint32 _maxLeverage,
@@ -398,6 +512,14 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             } else {
                 totalLoss = totalLoss.add(pnl);
             }
+            /*
+            if (accFundingFee[i].feeSign == Sign.POS) {
+                totalProfit = totalProfit.add(
+                    accFundingFee[i].unrealizedFundingFee
+                );
+            } else {
+                totalLoss = totalLoss.add(accFundingFee[i].unrealizedFundingFee);
+            }*/
         }
         if (totalProfit > totalLoss) {
             isPositive = true;
@@ -572,7 +694,41 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         accFundingFee[marketId].sign = resSign;
         accFundingFee[marketId].accRate = resNum;
         accFundingFee[marketId].lastTimestamp = uint256(block.timestamp);
-        emit ApplyFundingFee(marketId, sign, fundingRate);
+        emit ApplyFundingRate(marketId, sign, fundingRate);
+    }
+
+    function applyFundingFeeToPosition(uint256 tokenId)
+        public
+        returns (Sign sign, uint256 fee)
+    {
+        require(positions[tokenId].status == Status.OPEN, "Already Closed");
+        (
+            Sign fundingFeeSign,
+            uint256 currentFundingFee
+        ) = calculatePositionFundingFee(tokenId);
+
+        (, positions[tokenId].margin) = calculateUnsignedAdd(
+            Sign.POS,
+            positions[tokenId].margin,
+            fundingFeeSign,
+            currentFundingFee
+        );
+
+        (
+            accFundingFee[positions[tokenId].marketId].feeSign,
+            accFundingFee[positions[tokenId].marketId].unrealizedFundingFee
+        ) = calculateUnsignedSub(
+            accFundingFee[positions[tokenId].marketId].feeSign,
+            accFundingFee[positions[tokenId].marketId].unrealizedFundingFee,
+            fundingFeeSign,
+            currentFundingFee
+        );
+
+        positions[tokenId].sign = accFundingFee[positions[tokenId].marketId]
+            .sign;
+        positions[tokenId].initialAccFundingFee = accFundingFee[
+            positions[tokenId].marketId
+        ].accRate;
     }
 
     function calculateUnsignedAdd(
