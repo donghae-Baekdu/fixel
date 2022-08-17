@@ -21,8 +21,4 @@ interface IFactory {
     function getPriceOracle() external view returns (address);
 
     function setPriceOracle(address _priceOracleAddress) external;
-
-    function getFeePot() external view returns (address);
-
-    function setFeePot(address payable _feePotAddress) external;
 }

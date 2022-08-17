@@ -36,11 +36,7 @@ interface ILpPool {
         exchangerCall flag
     ) external returns (uint256 _amountToMint, uint256 _notionalValueInLpToken);
 
-    function getAmountToMint(
-        uint256 depositQty,
-        uint256 notionalValue,
-        bool isExchangerCall
-    )
+    function getAmountToMint(uint256 depositQty, uint256 notionalValue)
         external
         view
         returns (

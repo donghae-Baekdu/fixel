@@ -71,7 +71,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
                 _amountToMint,
                 _notionalValueInLpToken,
                 potentialSupply
-            ) = getAmountToMint(depositQty, notionalValue, isExchangerCall);
+            ) = getAmountToMint(depositQty, notionalValue);
 
             // transfer from user to lp pool
             IERC20(underlyingToken).safeTransferFrom(
@@ -107,7 +107,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
                 _amountToMint,
                 _notionalValueInLpToken,
                 potentialSupply
-            ) = getAmountToMint(notionalValue, notionalValue, isExchangerCall);
+            ) = getAmountToMint(notionalValue, notionalValue);
 
             // transfer from user to lp pool
             IERC20(underlyingToken).safeTransferFrom(
@@ -137,17 +137,13 @@ contract LpPool is LpToken, ILpPool, Ownable {
         }
     }
 
-    function getAmountToMint(
-        uint256 depositQty,
-        uint256 notionalValue,
-        bool isExchangerCall
-    )
+    function getAmountToMint(uint256 depositQty, uint256 notionalValue)
         public
         view
         returns (
-            uint256 _amountToMint,
-            uint256 _notionalValueInLpToken,
-            uint256 _potentialSupply
+            uint256 _amountToMint, // lp token unit
+            uint256 _notionalValueInLpToken, // lp token unit
+            uint256 _potentialSupply // lp token unit
         )
     {
         _potentialSupply = getPotentialSupply();
