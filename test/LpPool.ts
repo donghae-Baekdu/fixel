@@ -47,13 +47,6 @@ describe("LP Pool", function () {
         const lpPoolAddress = await FactoryContract.getLpPool();
         console.log("LP pool Deployed; address: ", lpPoolAddress);
 
-        const FeePot = await ethers.getContractFactory("FeePot");
-        const FeePotContract = await FeePot.deploy();
-        await FeePotContract.deployed();
-        await FactoryContract.setFeePot(FeePotContract.address);
-        const feePotAddress = await FactoryContract.getFeePot();
-        console.log("Fee pot Deployed; address: ", feePotAddress);
-
         //await FactoryContract.createPositionManager();
         const PositionManager = await ethers.getContractFactory(
             "PositionManager"
@@ -102,7 +95,6 @@ describe("LP Pool", function () {
             FactoryContract,
             LpPoolContract,
             PositionManagerContract,
-            FeePotContract,
             owner,
             addr1,
             addr2,
@@ -124,7 +116,6 @@ describe("LP Pool", function () {
                 FactoryContract,
                 LpPoolContract,
                 PositionManagerContract,
-                FeePotContract,
                 owner,
                 addr1,
                 addr2,
@@ -153,7 +144,6 @@ describe("LP Pool", function () {
                 FactoryContract,
                 LpPoolContract,
                 PositionManagerContract,
-                FeePotContract,
                 owner,
                 addr1,
                 addr2,
@@ -168,7 +158,6 @@ describe("LP Pool", function () {
                 FactoryContract,
                 LpPoolContract,
                 PositionManagerContract,
-                FeePotContract,
                 owner,
                 addr1,
                 addr2,
@@ -198,7 +187,6 @@ describe("LP Pool", function () {
                 FactoryContract,
                 LpPoolContract,
                 PositionManagerContract,
-                FeePotContract,
                 owner,
                 addr1,
                 addr2,
@@ -215,7 +203,6 @@ describe("LP Pool", function () {
                 FactoryContract,
                 LpPoolContract,
                 PositionManagerContract,
-                FeePotContract,
                 owner,
                 addr1,
                 addr2,
@@ -256,7 +243,6 @@ describe("LP Pool", function () {
                 FactoryContract,
                 LpPoolContract,
                 PositionManagerContract,
-                FeePotContract,
                 owner,
                 addr1,
                 addr2,
@@ -273,7 +259,6 @@ describe("LP Pool", function () {
                 FactoryContract,
                 LpPoolContract,
                 PositionManagerContract,
-                FeePotContract,
                 owner,
                 addr1,
                 addr2,
