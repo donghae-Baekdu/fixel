@@ -57,15 +57,17 @@ interface IPositionManager is IERC721Enumerable {
 
     struct FundingFee {
         Sign sign;
+        //Sign feeSign;
         uint256 lastTimestamp;
         uint256 accRate; //bp
+        //uint256 unrealizedFundingFee;
     }
 
     event ChangeMaxLeverage(uint32 marketId, uint32 _maxLeverage);
 
-    event AddMarket( string name,uint32 marketCount, uint32 _maxLeverage);
+    event AddMarket(string name, uint32 marketCount, uint32 _maxLeverage);
 
-    event ApplyFundingFee(uint32 marketId,Sign sign, uint256 fundingRate);
+    event ApplyFundingRate(uint32 marketId, Sign sign, uint256 fundingRate);
 
     event OpenPosition(
         address user,
@@ -101,10 +103,12 @@ interface IPositionManager is IERC721Enumerable {
         Side side
     ) external;
 
-    function closePosition(uint32 marketId, uint256 tokenId) external returns(uint256);
+    function closePosition(uint32 marketId, uint256 tokenId)
+        external
+        returns (uint256);
 
     function liquidate(uint32 marketId, uint256 tokenId) external;
-    
+
     function getMarketMaxLeverage(uint32 marketId)
         external
         view
@@ -127,8 +131,11 @@ interface IPositionManager is IERC721Enumerable {
             uint256 pnl,
             uint256 currentPrice
         );
-        
-    function getOwnedTokensIndex(address user, uint32 marketId) view external returns (uint256[] memory);
+
+    function getOwnedTokensIndex(address user, uint32 marketId)
+        external
+        view
+        returns (uint256[] memory);
 
     function addMarket(
         string memory name,
@@ -136,7 +143,14 @@ interface IPositionManager is IERC721Enumerable {
         uint32 threshold
     ) external;
 
-    function calculatePositionFundingFee(uint256 tokenId) view external returns (Sign sign, uint256 fundingFee);
+    function calculatePositionFundingFee(uint256 tokenId)
+        external
+        view
+        returns (Sign sign, uint256 fundingFee);
 
-    function applyFundingRate(uint32 marketId, Sign sign, uint256 fundingRate) external;
+    function applyFundingRate(
+        uint32 marketId,
+        Sign sign,
+        uint256 fundingRate
+    ) external;
 }
