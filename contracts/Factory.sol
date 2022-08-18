@@ -2,7 +2,6 @@
 pragma solidity ^0.8.9;
 
 import "./interfaces/ILpPool.sol";
-import "./interfaces/IFeePot.sol";
 import "./interfaces/IPositionManager.sol";
 import "./interfaces/IPriceOracle.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -17,7 +16,6 @@ contract Factory is Ownable, IFactory {
     ILpPool public lpPool;
     IPositionManager public positionManager;
     IPriceOracle public priceOracle;
-    IFeePot public feePot;
 
     function setPositionManager(address _positionManager) external onlyOwner {
         positionManager = IPositionManager(_positionManager);
@@ -44,14 +42,5 @@ contract Factory is Ownable, IFactory {
 
     function getPriceOracle() external view returns (address) {
         return address(priceOracle);
-    }
-
-    function getFeePot() external view returns (address) {
-        return address(feePot);
-    }
-
-    function setFeePot(address payable _feePotAddress) external onlyOwner {
-        feePot = IFeePot(_feePotAddress);
-        emit SetFeePot(_feePotAddress);
     }
 }
