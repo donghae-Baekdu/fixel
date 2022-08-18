@@ -72,7 +72,7 @@ interface ILpPool {
         external
         returns (uint256 _totalFee);
 
-    function collectLpFee(
+    function getLpFee(
         uint256 notionalValue // collateral unit
     ) external view returns (uint256 _totalFee);
 
@@ -86,7 +86,11 @@ interface ILpPool {
         uint256 lpToken
     ) external view returns (uint256 _collateral);
 
-    function liquidate(address user) external;
+    function liquidate(
+        address user,
+        uint256 positionQty,
+        address recipient
+    ) external;
 
     function underlyingToken() external view returns (address);
 }

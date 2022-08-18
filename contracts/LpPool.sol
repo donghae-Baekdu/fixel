@@ -27,6 +27,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
     uint80 public MINIMUM_UNDERLYING;
     uint80 defaultExchangeFeeTier; // bp
     uint80 defaultLpFeeTier; // bp
+    uint80 liquidationFee = 100;
 
     uint256 collateralLocked;
     mapping(address => Position) positions;
@@ -97,7 +98,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
                 "Not Enough Balance To Deposit"
             );
 
-            uint256 totalFee = collectLpFee(notionalValue);
+            _collectLpFee(user, notionalValue);
 
             (_amountToMint, _notionalValueInLpToken) = getAmountToMint(
                 notionalValue,
@@ -115,7 +116,6 @@ contract LpPool is LpToken, ILpPool, Ownable {
             positions[user].notionalEntryAmount += notionalValue;
 
             positions[user].margin += depositQty;
-            positions[user].margin -= totalFee;
 
             // mint token
             if (_amountToMint != 0) {
@@ -183,31 +183,26 @@ contract LpPool is LpToken, ILpPool, Ownable {
             emit LiquidityRemoved(user, _amountToWithdraw, liquidity);
         } else {
             require(
-                msg.sender == address(this),
+                msg.sender == user,
                 "Not allowed to remove liquidity as a lp"
             );
 
-            uint256 potentialSupply;
-            (_amountToWithdraw, potentialSupply) = getAmountToWithdraw(
-                notionalValue
-            );
+            (
+                uint256 exchangedAmount,
+                uint256 potentialSupply
+            ) = getAmountToWithdraw(notionalValue);
 
             // collect fee
-            uint256 totalFee = collectLpFee(_amountToWithdraw);
-            _amountToWithdraw -= totalFee;
+            uint256 totalFee = _collectLpFee(user, exchangedAmount);
             // burn lp token
             _burn(msg.sender, notionalValue);
             potentialSupply -= notionalValue;
             positions[user].lpPositionSize -= notionalValue;
-            if (positions[user].notionalEntryAmount >= _amountToWithdraw) {
-                positions[user].notionalEntryAmount -= _amountToWithdraw;
-            } else {
-                positions[user].margin += _amountToWithdraw;
-                positions[user].margin -= positions[user].notionalEntryAmount;
 
-                positions[user].notionalEntryAmount = 0;
-            }
-            collateralLocked -= _amountToWithdraw;
+            // repay debt first
+            _repayLpDebt(user, exchangedAmount);
+
+            _amountToWithdraw = exchangedAmount.sub(totalFee);
 
             require(
                 (
@@ -221,12 +216,13 @@ contract LpPool is LpToken, ILpPool, Ownable {
                         )
                         .sub(positions[user].notionalEntryAmount)
                         .sub(liquidity)
-                ).mul(100).div(positions[user].margin) >= 1,
+                ).mul(1000).div(positions[user].margin) >= 50,
                 "Not able to remove liquidity. Too high leverage."
             );
 
             // transfer liquidity out if available
             IERC20(underlyingToken).transfer(user, liquidity);
+            positions[user].margin -= liquidity;
             collateralLocked -= liquidity;
 
             emit LiquidityRemoved(user, _amountToWithdraw, liquidity);
@@ -261,31 +257,6 @@ contract LpPool is LpToken, ILpPool, Ownable {
             : totalSupply.sub(potentialSupply);
     }
 
-    function setFeeTier(uint80 fee, bool isExchangerCall) external onlyOwner {
-        if (isExchangerCall) {
-            defaultExchangeFeeTier = fee;
-        } else {
-            defaultLpFeeTier = fee;
-        }
-    }
-
-    function getFeeTier(bool isExchangerCall)
-        external
-        view
-        returns (uint80 _fee, uint80 _feeTierDenom)
-    {
-        _fee = isExchangerCall ? defaultExchangeFeeTier : defaultLpFeeTier;
-        _feeTierDenom = feeTierDenom;
-    }
-
-    function mint(address to, uint256 value) external onlyExchanger {
-        _mint(to, value);
-    }
-
-    function burn(address to, uint256 value) external onlyExchanger {
-        _burn(to, value);
-    }
-
     function collectExchangeFee(uint256 notionalValue)
         external
         onlyExchanger
@@ -299,7 +270,15 @@ contract LpPool is LpToken, ILpPool, Ownable {
         _burn(msg.sender, _totalFee);
     }
 
-    function collectLpFee(
+    function _collectLpFee(
+        address user,
+        uint256 notionalValue // collateral unit
+    ) internal returns (uint256 _totalFee) {
+        _totalFee = getLpFee(notionalValue);
+        positions[user].margin -= _totalFee;
+    }
+
+    function getLpFee(
         uint256 notionalValue // collateral unit
     ) public view returns (uint256 _totalFee) {
         _totalFee = notionalValue.sub(
@@ -307,6 +286,70 @@ contract LpPool is LpToken, ILpPool, Ownable {
                 feeTierDenom
             )
         );
+    }
+
+    function _repayLpDebt(address user, uint256 repayAmount) internal {
+        if (positions[user].notionalEntryAmount >= repayAmount) {
+            positions[user].notionalEntryAmount -= repayAmount;
+            collateralLocked -= repayAmount;
+        } else {
+            positions[user].margin += repayAmount;
+            positions[user].margin -= positions[user].notionalEntryAmount;
+
+            collateralLocked -= positions[user].notionalEntryAmount;
+
+            positions[user].notionalEntryAmount = 0;
+        }
+    }
+
+    function liquidate(
+        address user,
+        uint256 positionQty,
+        address recipient
+    ) external {
+        (
+            uint256 exchangedAmount,
+            uint256 potentialSupply
+        ) = getAmountToWithdraw(positionQty);
+        require(
+            (
+                positions[user]
+                    .margin
+                    .add(
+                        lpTokenToCollateralConvertUnit(
+                            potentialSupply,
+                            positions[user].lpPositionSize
+                        )
+                    )
+                    .sub(positions[user].notionalEntryAmount)
+            ).mul(1000).div(positions[user].margin) < 50,
+            "Not able to liquidate"
+        );
+        // collect fee
+        _collectLpFee(user, exchangedAmount);
+        _receiveLiquidationFee(user, exchangedAmount, recipient);
+
+        // burn lp token
+        _burn(msg.sender, positionQty);
+        potentialSupply -= positionQty;
+        positions[user].lpPositionSize -= positionQty;
+
+        _repayLpDebt(user, exchangedAmount);
+    }
+
+    function _receiveLiquidationFee(
+        address user,
+        uint256 liquidationAmount, // collateral unit
+        address recipient
+    ) internal returns (uint256 _fee) {
+        _fee = liquidationAmount.sub(
+            liquidationAmount.mul(feeTierDenom.sub(liquidationFee)).div(
+                feeTierDenom
+            )
+        );
+        IERC20(underlyingToken).transfer(recipient, _fee);
+        positions[user].margin -= _fee;
+        collateralLocked -= _fee;
     }
 
     function collateralToLpTokenConvertUnit(
@@ -326,22 +369,28 @@ contract LpPool is LpToken, ILpPool, Ownable {
         _collateral = lpToken.mul(collateralLocked).div(potentialSupply);
     }
 
-    function liquidate(address user) external {
-        uint256 potentialSupply = getPotentialSupply();
-        require(
-            (
-                positions[user]
-                    .margin
-                    .add(
-                        lpTokenToCollateralConvertUnit(
-                            potentialSupply,
-                            positions[user].lpPositionSize
-                        )
-                    )
-                    .sub(positions[user].notionalEntryAmount)
-            ).mul(100).div(positions[user].margin) < 1,
-            "Not able to remove liquidity. Too high leverage."
-        );
-        // TODO liquidate
+    function mint(address to, uint256 value) external onlyExchanger {
+        _mint(to, value);
+    }
+
+    function burn(address to, uint256 value) external onlyExchanger {
+        _burn(to, value);
+    }
+
+    function setFeeTier(uint80 fee, bool isExchangerCall) external onlyOwner {
+        if (isExchangerCall) {
+            defaultExchangeFeeTier = fee;
+        } else {
+            defaultLpFeeTier = fee;
+        }
+    }
+
+    function getFeeTier(bool isExchangerCall)
+        external
+        view
+        returns (uint80 _fee, uint80 _feeTierDenom)
+    {
+        _fee = isExchangerCall ? defaultExchangeFeeTier : defaultLpFeeTier;
+        _feeTierDenom = feeTierDenom;
     }
 }
