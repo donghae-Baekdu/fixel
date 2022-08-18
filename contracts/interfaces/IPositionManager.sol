@@ -28,6 +28,7 @@ interface IPositionManager is IERC721Enumerable {
         //uint32 leverage;
         uint256 margin;
         uint256 notionalValue;
+        uint256 realizedMargin;
         uint256 price;
         uint256 factor;
         uint256 closePrice;
@@ -40,7 +41,7 @@ interface IPositionManager is IERC721Enumerable {
     }
 
     struct MarketStatus {
-        uint256 margin;
+        //uint256 margin;
         Sign pnlSign;
         uint256 unrealizedPnl;
         uint256 totalLongPositionFactor;
