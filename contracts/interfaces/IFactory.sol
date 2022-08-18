@@ -6,8 +6,6 @@ interface IFactory {
 
     event SetPositionManager(address positionManagerAddress);
 
-    event SetFeePot(address feePotAddress);
-
     event SetPriceOracle(address priceOracleAddress);
 
     function setPositionManager(address _positionManager) external;
