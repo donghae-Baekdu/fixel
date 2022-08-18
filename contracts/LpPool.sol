@@ -191,13 +191,13 @@ contract LpPool is LpToken, ILpPool, Ownable {
                 uint256 exchangedAmount,
                 uint256 potentialSupply
             ) = getAmountToWithdraw(notionalValue);
-
+            Position storage position = positions[user];
             // collect fee
             uint256 totalFee = _collectLpFee(user, exchangedAmount);
             // burn lp token
             _burn(msg.sender, notionalValue);
             potentialSupply -= notionalValue;
-            positions[user].lpPositionSize -= notionalValue;
+            position.lpPositionSize -= notionalValue;
 
             // repay debt first
             _repayLpDebt(user, exchangedAmount);
@@ -206,23 +206,23 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
             require(
                 (
-                    positions[user]
+                    position
                         .margin
                         .add(
                             lpTokenToCollateralConvertUnit(
                                 potentialSupply,
-                                positions[user].lpPositionSize
+                                position.lpPositionSize
                             )
                         )
-                        .sub(positions[user].notionalEntryAmount)
+                        .sub(position.notionalEntryAmount)
                         .sub(liquidity)
-                ).mul(1000).div(positions[user].margin) >= 50,
+                ).mul(1000).div(position.margin) >= 50,
                 "Not able to remove liquidity. Too high leverage."
             );
 
             // transfer liquidity out if available
             IERC20(underlyingToken).transfer(user, liquidity);
-            positions[user].margin -= liquidity;
+            position.margin -= liquidity;
             collateralLocked -= liquidity;
 
             emit LiquidityRemoved(user, _amountToWithdraw, liquidity);
@@ -311,18 +311,19 @@ contract LpPool is LpToken, ILpPool, Ownable {
             uint256 exchangedAmount,
             uint256 potentialSupply
         ) = getAmountToWithdraw(positionQty);
+        Position storage position = positions[user];
         require(
             (
-                positions[user]
+                position
                     .margin
                     .add(
                         lpTokenToCollateralConvertUnit(
                             potentialSupply,
-                            positions[user].lpPositionSize
+                            position.lpPositionSize
                         )
                     )
-                    .sub(positions[user].notionalEntryAmount)
-            ).mul(1000).div(positions[user].margin) < 50,
+                    .sub(position.notionalEntryAmount)
+            ).mul(1000).div(position.margin) < 50,
             "Not able to liquidate"
         );
         // collect fee
@@ -332,7 +333,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
         // burn lp token
         _burn(msg.sender, positionQty);
         potentialSupply -= positionQty;
-        positions[user].lpPositionSize -= positionQty;
+        position.lpPositionSize -= positionQty;
 
         _repayLpDebt(user, exchangedAmount);
     }
