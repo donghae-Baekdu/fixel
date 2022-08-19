@@ -6,6 +6,7 @@ import "./Factory.sol";
 import "./interfaces/IFactory.sol";
 import "./interfaces/ILpPool.sol";
 import "./interfaces/IPositionManager.sol";
+import "./USDC.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -21,6 +22,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
     address factory;
 
     address public override underlyingToken;
+    uint8 public UNDERLYING_TOKEN_DECIMAL;
 
     uint80 public constant feeTierDenom = 10000;
     uint80 public constant initialExachangeRate = 1; // GD -> USD
@@ -34,6 +36,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
     constructor(address _underlyingToken, address _factory) public {
         underlyingToken = _underlyingToken;
+        UNDERLYING_TOKEN_DECIMAL = USDC(underlyingToken).decimals();
         factory = _factory;
     }
 
@@ -141,7 +144,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
         )
     {
         uint256 potentialSupply = getPotentialSupply();
-
+        console.log("potentialSupply", potentialSupply);
         _amountToMint = collateralToLpTokenConvertUnit(
             potentialSupply,
             depositQty
@@ -359,7 +362,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
     ) public view returns (uint256 _lpToken) {
         // delta Collateral / Collateral locked * GD supply (decimals is GD's decimals)
         _lpToken = (potentialSupply == 0 || collateralLocked == 0)
-            ? collateral.div(initialExachangeRate)
+            ? collateral.mul(uint(10)**decimals).div(uint(10)**UNDERLYING_TOKEN_DECIMAL).div(initialExachangeRate)
             : collateral.mul(potentialSupply).div(collateralLocked);
     }
 

@@ -58,8 +58,8 @@ async function deployFixture() {
   const positionManagerAddress = PositionManagerContract.address;
   console.log("Position Manager Deployed; address: ", positionManagerAddress);
   await FactoryContract.setPositionManager(positionManagerAddress);
-  await LpPoolContract.setFeeTier(0, 0);
-  await LpPoolContract.setFeeTier(0, 1);
+  await LpPoolContract.setFeeTier(0, false);
+  await LpPoolContract.setFeeTier(0, true);
   //await LpPoolContract.setFeeTier(30, 0);
   //await LpPoolContract.setFeeTier(10, 1);
 
@@ -106,18 +106,18 @@ describe("Position Controller", async function () {
 
   describe("openPosition", async () => {
     it("first position", async function () {
-      await fixture.PositionControllerContract.openPosition(
+      await fixture.PositionManagerContract.openPosition(
         0,
-        ethers.utils.parseUnits("10000", 18),
         5 * 100,
+        ethers.utils.parseUnits("10000", 6),
         0
       );
-      const position = await fixture.PositionControllerContract.positions(0);
+      const position = await fixture.PositionManagerContract.positions(0);
       console.log(position);
 
       expect(
         await fixture.LpPoolContract.balanceOf(
-          fixture.PositionControllerContract.address
+          fixture.PositionManagerContract.address
         )
       ).equal(ethers.utils.parseUnits("10000", 18));
     });
@@ -128,17 +128,18 @@ describe("Position Controller", async function () {
         ethers.utils.parseUnits("1100", 9)
       );
 
-      await fixture.PositionControllerContract.openPosition(
+      await fixture.PositionManagerContract.openPosition(
         0,
-        ethers.utils.parseUnits("10000", 18),
         5 * 100,
+        ethers.utils.parseUnits("10000", 6),
         0
       );
-
-      const position = await fixture.PositionControllerContract.positions(1);
-
+      const pos = await fixture.PositionManagerContract.positions(0);
+      console.log("pos1", pos);
+      const position = await fixture.PositionManagerContract.positions(1);
+      console.log("pos2", position);
       expect(position.margin).equal(ethers.utils.parseUnits("15000", 18));
-      await fixture.PositionControllerContract.closePosition(0, 1);
+      await fixture.PositionManagerContract.closePosition(0, 1);
     });
 
     it("open position after other position get loss", async () => {
@@ -147,14 +148,14 @@ describe("Position Controller", async function () {
         ethers.utils.parseUnits("900", 9)
       );
 
-      await fixture.PositionControllerContract.openPosition(
+      await fixture.PositionManagerContract.openPosition(
         0,
-        ethers.utils.parseUnits("10000", 18),
         5 * 100,
+        ethers.utils.parseUnits("10000", 6),
         0
       );
 
-      const position = await fixture.PositionControllerContract.positions(2);
+      const position = await fixture.PositionManagerContract.positions(2);
       console.log(position);
       expect(position.margin).equal(ethers.utils.parseUnits("5000", 18));
     });
@@ -162,61 +163,165 @@ describe("Position Controller", async function () {
 
   describe("close position", async () => {
     it("close position case1", async function () {
-      const res = await fixture.PositionControllerContract.closePosition(0, 0);
-      const position = await fixture.PositionControllerContract.positions(0);
+      const res = await fixture.PositionManagerContract.closePosition(0, 0);
+      const position = await fixture.PositionManagerContract.positions(0);
       console.log(position, res);
     });
   });
 
   describe("utils", async () => {
     it("get positions by marketId", async function () {
-      await fixture.PositionControllerContract.openPosition(
+      await fixture.PositionManagerContract.openPosition(
         0,
-        ethers.utils.parseUnits("10000", 18),
         5 * 100,
+        ethers.utils.parseUnits("10000", 6),
         0
       );
-      await fixture.PositionControllerContract.openPosition(
+      await fixture.PositionManagerContract.openPosition(
         0,
-        ethers.utils.parseUnits("10000", 18),
         5 * 100,
+        ethers.utils.parseUnits("10000", 6),
         0
       );
-      await fixture.PositionControllerContract.openPosition(
+      await fixture.PositionManagerContract.openPosition(
         0,
-        ethers.utils.parseUnits("10000", 18),
         5 * 100,
+        ethers.utils.parseUnits("10000", 6),
         0
       );
-      await fixture.PositionControllerContract.openPosition(
+      await fixture.PositionManagerContract.openPosition(
         0,
-        ethers.utils.parseUnits("10000", 18),
         5 * 100,
+        ethers.utils.parseUnits("10000", 6),
         0
       );
-      await fixture.PositionControllerContract.closePosition(0, 3);
-      await fixture.PositionControllerContract.closePosition(0, 5);
-      await fixture.PositionControllerContract.transferFrom(
+      await fixture.PositionManagerContract.closePosition(0, 3);
+      await fixture.PositionManagerContract.closePosition(0, 5);
+      await fixture.PositionManagerContract.transferFrom(
         (
           await ethers.getSigners()
         )[0].address,
         "0x6055E8c2ccA5c65181194BA83Ad1A3268849f1E0",
         2
       );
-      const index =
-        await fixture.PositionControllerContract.getOwnedTokensIndex(
-          (
-            await ethers.getSigners()
-          )[0].address,
-          0
-        );
+      const index = await fixture.PositionManagerContract.getOwnedTokensIndex(
+        (
+          await ethers.getSigners()
+        )[0].address,
+        0
+      );
       console.log(index);
-      const index2 =
-        await fixture.PositionControllerContract.getOwnedTokensIndex(
-          "0x6055E8c2ccA5c65181194BA83Ad1A3268849f1E0",
-          0
-        );
+      const index2 = await fixture.PositionManagerContract.getOwnedTokensIndex(
+        "0x6055E8c2ccA5c65181194BA83Ad1A3268849f1E0",
+        0
+      );
       console.log(index2);
     });
   });
+
+  describe("Funding Fee", async () => {
+    it("calculate positive funding fee with long position", async () => {
+      await fixture.PositionManagerContract.applyFundingRate(0, 0, 1000);
+      const res = await fixture.PositionManagerContract.openPosition(
+        0,
+        5 * 100,
+        ethers.utils.parseUnits("10000", 6),
+        0
+      );
+      const position = await fixture.PositionManagerContract.positions(7);
+
+      await fixture.PositionManagerContract.applyFundingRate(0, 1, 200);
+      const res2 =
+        await fixture.PositionManagerContract.calculatePositionFundingFee(7);
+      expect(res2.sign).equal(0);
+
+      expect(res2.fundingFee).equal(
+        ethers.utils.parseUnits(
+          new BigNumber(position.notionalValue.toString())
+            .dividedBy(50)
+            .toFixed(),
+          0
+        )
+      );
+    });
+
+    it("calculate negative funding fee with short position", async () => {
+      const res = await fixture.PositionManagerContract.openPosition(
+        0,
+        5 * 100,
+        ethers.utils.parseUnits("10000", 6),
+        1
+      );
+      const position = await fixture.PositionManagerContract.positions(8);
+
+      await fixture.PositionManagerContract.applyFundingRate(0, 1, 200);
+      const res2 =
+        await fixture.PositionManagerContract.calculatePositionFundingFee(8);
+
+      expect(res2.sign).equal(1);
+
+      expect(res2.fundingFee).equal(
+        ethers.utils.parseUnits(
+          new BigNumber(position.notionalValue.toString())
+            .dividedBy(50)
+            .toFixed(),
+          0
+        )
+      );
+    });
+
+    it("apply positive funding fee", async () => {
+      const res = await fixture.PositionManagerContract.openPosition(
+        0,
+        5 * 100,
+        ethers.utils.parseUnits("10000", 6),
+        0
+      );
+      const position = await fixture.PositionManagerContract.positions(9);
+      const check1 = await fixture.LpPoolContract.getAmountToMint(
+        ethers.utils.parseUnits("10000", 6),
+        ethers.utils.parseUnits("10000", 6)
+      );
+      const test =
+        await fixture.PositionManagerContract.calculatePositionFundingFee(9);
+      await fixture.PositionManagerContract.applyFundingRate(0, 1, 200);
+      await fixture.PositionManagerContract.applyFundingFeeToPosition(9);
+      const check2 = await fixture.LpPoolContract.getAmountToMint(
+        ethers.utils.parseUnits("10000", 6),
+        ethers.utils.parseUnits("10000", 6)
+      );
+      console.log("check",convertToString(check1._amountToMint), convertToString(check2._amountToMint))
+      const positionAfter = await fixture.PositionManagerContract.positions(9);
+      const res2 =
+        await fixture.PositionManagerContract.calculatePositionFundingFee(9);
+      expect(res2.fundingFee).equal(
+        ethers.utils.parseUnits(new BigNumber(0).toFixed(), 0)
+      );
+
+      expect(positionAfter.margin).equal(
+        new BigNumber(position.notionalValue.toString())
+          .multipliedBy(0.02)
+          .plus(new BigNumber(position.margin.toString()))
+          .toFixed()
+      );
+    });
+  });
+
+  describe("Partial Fill", async() => {
+    describe("addMargin", async () => {
+        
+    })
+
+    describe("removeMargin", async () => {
+
+    })
+  })
 });
+
+function convertToString(input: any) {
+  return new BigNumber(input.toString()).toFixed();
+}
+
+function convertToBigNumber(input: any) {
+  return new BigNumber(input.toString());
+}
