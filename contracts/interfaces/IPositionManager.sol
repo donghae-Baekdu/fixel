@@ -154,4 +154,16 @@ interface IPositionManager is IERC721Enumerable {
         Sign sign,
         uint256 fundingRate
     ) external;
+
+    function addMargin(
+        uint256 tokenId,
+        uint256 liquidity,
+        uint256 notionalValue // value as usdc
+    ) external;
+
+    function removeMargin(
+        uint256 tokenId,
+        uint256 margin,
+        uint256 notionalValue
+    ) external;
 }

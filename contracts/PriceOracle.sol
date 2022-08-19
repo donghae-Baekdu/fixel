@@ -10,7 +10,7 @@ contract PriceOracle is Ownable {
     mapping(uint80 => string) public markets;
     uint80 marketCount;
     
-    uint256 public PRICE_DECIMAL = uint(9);
+    uint256 public PRICE_DECIMAL = uint(6);
     event SetPrice(uint80 poolId, uint256 prices);
     event AddMarket(uint80 poolId, string name);
 
