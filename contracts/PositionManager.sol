@@ -173,8 +173,6 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                 ILpPool.exchangerCall.yes
             );
 
-        collectTradingFee(tokenId, notionalValueAsGd);
-
         ValueWithSign memory pnl;
 
         (pnl.sign, pnl.value) = calculatePnl(
@@ -183,6 +181,22 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             notionalValue,
             positions[tokenId].side
         );
+        {
+            (, uint256 currentNotionalValue) = calculateUnsignedAdd(
+                Sign.POS,
+                positions[tokenId].notionalValue,
+                pnl.sign,
+                pnl.value
+            );
+
+            require(
+                (currentMargin.add(margin)).mul(
+                    marketInfo[marketId].maxLeverage
+                ) >= currentNotionalValue.add(notionalValue),
+                "Exceed Max Leverage"
+            );
+        }
+        collectTradingFee(tokenId, notionalValueAsGd);
 
         positions[tokenId].margin = positions[tokenId].margin.add(margin);
         positions[tokenId].notionalValue = positions[tokenId].notionalValue.add(
@@ -247,10 +261,8 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         // sub trading fee
         collectTradingFee(tokenId, notionalValue);
 
-        {
-            uint256 currentMargin = calculateMargin(tokenId);
-            require(margin >= currentMargin, "Insufficient Margin");
-        }
+        uint256 currentMargin = calculateMargin(tokenId);
+        require(margin >= currentMargin, "Insufficient Margin");
 
         ILpPool(factoryContract.getLpPool()).removeLiquidity(
             msg.sender,
@@ -269,10 +281,6 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             margin
         );
 
-        positions[tokenId].realizedMargin = positions[tokenId]
-            .realizedMargin
-            .add(margin);
-
         ValueWithSign memory pnl;
 
         (pnl.sign, pnl.value) = calculatePnl(
@@ -281,6 +289,25 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             notionalValue,
             positions[tokenId].side
         );
+
+
+        {
+            (, uint256 currentNotionalValue) = calculateUnsignedAdd(
+                Sign.POS,
+                positions[tokenId].notionalValue,
+                pnl.sign,
+                pnl.value
+            );
+            require(
+                (currentMargin.sub(margin)).mul(
+                    marketInfo[marketId].maxLeverage
+                ) >= currentNotionalValue.sub(notionalValue),
+                "Exceed Max Leverage"
+            );
+        }
+        positions[tokenId].realizedMargin = positions[tokenId]
+            .realizedMargin
+            .add(margin);
 
         (
             marketStatus[marketId].pnlSign,
@@ -842,8 +869,9 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         );
         */
 
-        positions[tokenId].initialFundingFeeSign = accFundingFee[positions[tokenId].marketId]
-            .sign;
+        positions[tokenId].initialFundingFeeSign = accFundingFee[
+            positions[tokenId].marketId
+        ].sign;
         positions[tokenId].initialAccFundingFee = accFundingFee[
             positions[tokenId].marketId
         ].accRate;
