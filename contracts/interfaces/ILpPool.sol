@@ -93,4 +93,9 @@ interface ILpPool {
     ) external;
 
     function underlyingToken() external view returns (address);
+
+    function getInputAmountToMint(uint256 outputAmount)
+        external
+        view
+        returns (uint256 _inputAmount);
 }

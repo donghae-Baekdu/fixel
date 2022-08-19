@@ -1,5 +1,6 @@
 import { ethers } from "hardhat";
 import { BigNumber } from "bignumber.js";
+import { ActionType } from "hardhat/types";
 const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 const { expect } = require("chai");
 
@@ -25,9 +26,9 @@ async function deployFixture() {
   await PriceOracleContract.addMarket("NFT1");
   await PriceOracleContract.addMarket("NFT2");
   await PriceOracleContract.addMarket("NFT3");
-  await PriceOracleContract.setPriceOracle(0, 1000 * 10 ** 9);
-  await PriceOracleContract.setPriceOracle(1, 2000 * 10 ** 9);
-  await PriceOracleContract.setPriceOracle(2, 3000 * 10 ** 9);
+  await PriceOracleContract.setPriceOracle(0, 1000 * 10 ** 6);
+  await PriceOracleContract.setPriceOracle(1, 2000 * 10 ** 6);
+  await PriceOracleContract.setPriceOracle(2, 3000 * 10 ** 6);
   console.log("Set price oracle");
 
   const Factory = await ethers.getContractFactory("Factory");
@@ -125,7 +126,7 @@ describe("Position Controller", async function () {
     it("open position after other position get profit", async () => {
       await fixture.PriceOracleContract.setPriceOracle(
         0,
-        ethers.utils.parseUnits("1100", 9)
+        ethers.utils.parseUnits("1100", 6)
       );
 
       await fixture.PositionManagerContract.openPosition(
@@ -145,7 +146,7 @@ describe("Position Controller", async function () {
     it("open position after other position get loss", async () => {
       await fixture.PriceOracleContract.setPriceOracle(
         0,
-        ethers.utils.parseUnits("900", 9)
+        ethers.utils.parseUnits("900", 6)
       );
 
       await fixture.PositionManagerContract.openPosition(
@@ -290,7 +291,11 @@ describe("Position Controller", async function () {
         ethers.utils.parseUnits("10000", 6),
         ethers.utils.parseUnits("10000", 6)
       );
-      console.log("check",convertToString(check1._amountToMint), convertToString(check2._amountToMint))
+      console.log(
+        "check",
+        convertToString(check1._amountToMint),
+        convertToString(check2._amountToMint)
+      );
       const positionAfter = await fixture.PositionManagerContract.positions(9);
       const res2 =
         await fixture.PositionManagerContract.calculatePositionFundingFee(9);
@@ -307,15 +312,108 @@ describe("Position Controller", async function () {
     });
   });
 
-  describe("Partial Fill", async() => {
+  describe("Partial Fill", async () => {
     describe("addMargin", async () => {
-        
-    })
+      it("with no pnl", async () => {
+        const res = await fixture.PositionManagerContract.openPosition(
+          0,
+          5 * 100,
+          ethers.utils.parseUnits("10000", 6),
+          0
+        );
+
+        const position = await fixture.PositionManagerContract.positions(10);
+
+        console.log(
+          convertToString(position.margin),
+          convertToString(position.notionalValue)
+        );
+        await fixture.PositionManagerContract.addMargin(
+          10,
+          ethers.utils.parseUnits("10000", 6),
+          ethers.utils.parseUnits("50000", 6)
+        );
+        const positionAfter = await fixture.PositionManagerContract.positions(
+          10
+        );
+        console.log(
+          convertToNumber(positionAfter.margin, 18),
+          convertToNumber(positionAfter.notionalValue, 18)
+        );
+      });
+
+      it("check pnl after add margin", async () => {
+        const test1 = await fixture.PositionManagerContract.calculateMargin(10);
+        await fixture.PriceOracleContract.setPriceOracle(0, 990 * 10 ** 6);
+        const test2 = await fixture.PositionManagerContract.calculateMargin(10);
+        const test3 = await fixture.PositionManagerContract.positions(10);
+        console.log(
+          convertToNumber(test1, 18),
+          convertToNumber(test2, 18),
+          convertToNumber(test3.margin, 18),
+          convertToNumber(test3.price, 6)
+        );
+      });
+      it("add margin after get pnl", async () => {
+        const test1 = await fixture.PositionManagerContract.calculateMargin(10);
+        const test3 = await fixture.PositionManagerContract.positions(10);
+        //15000 55000
+        await fixture.PositionManagerContract.addMargin(
+          10,
+          ethers.utils.parseUnits("15000", 6),
+          ethers.utils.parseUnits("55000", 6)
+        );
+        await fixture.PriceOracleContract.setPriceOracle(0, 1089 * 10 ** 6);
+        const test2 = await fixture.PositionManagerContract.calculateMargin(10);
+        const test4 = await fixture.PositionManagerContract.positions(10);
+
+        console.log(convertToNumber(test1, 18), convertToNumber(test2, 18));
+
+        console.log(
+          convertToNumber(test3.margin, 18),
+          convertToNumber(test4.margin, 18)
+        );
+      });
+    });
 
     describe("removeMargin", async () => {
+      it("with no pnl", async () => {
+        const res = await fixture.PositionManagerContract.openPosition(
+          0,
+          5 * 100,
+          ethers.utils.parseUnits("10000", 6),
+          0
+        );
 
-    })
-  })
+        const position = await fixture.PositionManagerContract.positions(11);
+
+        console.log(
+          convertToNumber(position.margin, 18),
+          convertToNumber(position.notionalValue, 18)
+        );
+        await fixture.PositionManagerContract.removeMargin(
+          11,
+          ethers.utils.parseUnits(
+            convertToBigNumber(position.margin).dividedBy(5).toFixed(0),
+            0
+          ),
+          ethers.utils.parseUnits(
+            convertToBigNumber(position.notionalValue).dividedBy(2).toFixed(0),
+            0
+          )
+        );
+        const positionAfter = await fixture.PositionManagerContract.positions(
+          11
+        );
+        const test = await fixture.PositionManagerContract.calculateMargin(11);
+        console.log(
+          convertToString(positionAfter.margin),
+          convertToString(test),
+          convertToString(positionAfter.notionalValue)
+        );
+      });
+    });
+  });
 });
 
 function convertToString(input: any) {
@@ -324,4 +422,10 @@ function convertToString(input: any) {
 
 function convertToBigNumber(input: any) {
   return new BigNumber(input.toString());
+}
+
+function convertToNumber(input: any, decimal: number) {
+  return new BigNumber(input.toString())
+    .dividedBy(new BigNumber(10).exponentiatedBy(decimal))
+    .toFixed(0);
 }
