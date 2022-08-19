@@ -243,9 +243,11 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                 )
             )
         );
+        console.log("factor before",positions[tokenId].factor);
         positions[tokenId].factor = positions[tokenId].notionalValue.div(
             positions[tokenId].price
         );
+        console.log("factor after", positions[tokenId].factor);
     }
 
     function removeMargin(
@@ -262,7 +264,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         collectTradingFee(tokenId, notionalValue);
 
         uint256 currentMargin = calculateMargin(tokenId);
-        require(margin >= currentMargin, "Insufficient Margin");
+        require(currentMargin >= margin, "Insufficient Margin");
 
         ILpPool(factoryContract.getLpPool()).removeLiquidity(
             msg.sender,
@@ -289,7 +291,6 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             notionalValue,
             positions[tokenId].side
         );
-
 
         {
             (, uint256 currentNotionalValue) = calculateUnsignedAdd(

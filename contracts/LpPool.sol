@@ -156,6 +156,15 @@ contract LpPool is LpToken, ILpPool, Ownable {
         );
     }
 
+    function getInputAmountToMint(uint256 outputAmount)
+        public
+        view
+        returns (uint256 _inputAmount)
+    {
+        uint256 potentialSupply = getPotentialSupply();
+        _inputAmount = LpTokenToCollateralConvertUnit(potentialSupply, outputAmount);
+    }
+
     function removeLiquidity(
         address user,
         uint256 liquidity, // lp token if exchanger, collateral if lp manager
@@ -362,8 +371,23 @@ contract LpPool is LpToken, ILpPool, Ownable {
     ) public view returns (uint256 _lpToken) {
         // delta Collateral / Collateral locked * GD supply (decimals is GD's decimals)
         _lpToken = (potentialSupply == 0 || collateralLocked == 0)
-            ? collateral.mul(uint(10)**decimals).div(uint(10)**UNDERLYING_TOKEN_DECIMAL).div(initialExachangeRate)
+            ? collateral
+                .mul(uint(10)**decimals)
+                .div(uint(10)**UNDERLYING_TOKEN_DECIMAL)
+                .div(initialExachangeRate)
             : collateral.mul(potentialSupply).div(collateralLocked);
+    }
+
+    function LpTokenToCollateralConvertUnit(
+        uint256 potentialSupply,
+        uint256 lpAmount
+    ) public view returns (uint256 _collateral) {
+        _collateral = (potentialSupply == 0 || collateralLocked == 0)
+            ? lpAmount
+                .mul(uint(10)**UNDERLYING_TOKEN_DECIMAL)
+                .mul(initialExachangeRate)
+                .div(uint(10)**decimals)
+            : lpAmount.mul(collateralLocked).div(potentialSupply);
     }
 
     function lpTokenToCollateralConvertUnit(
