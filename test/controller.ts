@@ -357,19 +357,27 @@ describe("Position Controller", async function () {
       it("add margin after get pnl", async () => {
         const test1 = await fixture.PositionManagerContract.calculateMargin(10);
         const test3 = await fixture.PositionManagerContract.positions(10);
-        //15000 55000
+        const inputAmount = await fixture.LpPoolContract.getInputAmountToMint(
+          ethers.utils.parseUnits("15000", 18)
+        );
+        console.log("input amount", convertToNumber(inputAmount, 6));
+
         await fixture.PositionManagerContract.addMargin(
           10,
-          ethers.utils.parseUnits("15000", 6),
-          ethers.utils.parseUnits("55000", 6)
+          ethers.utils.parseUnits(convertToString(inputAmount), 0),
+          ethers.utils.parseUnits(convertToString(inputAmount), 0).mul(3)
         );
+        const test5 = await fixture.PositionManagerContract.positions(10);
+        const test6 = await fixture.PositionManagerContract.calculateMargin(10);
+        console.log("before get profit", convertToNumber(test6, 18),convertToNumber(test5.notionalValue, 18))
         await fixture.PriceOracleContract.setPriceOracle(0, 1089 * 10 ** 6);
         const test2 = await fixture.PositionManagerContract.calculateMargin(10);
         const test4 = await fixture.PositionManagerContract.positions(10);
 
-        console.log(convertToNumber(test1, 18), convertToNumber(test2, 18));
+        console.log("margin", convertToNumber(test1, 18), convertToNumber(test2, 18));
 
         console.log(
+            "initial margin",
           convertToNumber(test3.margin, 18),
           convertToNumber(test4.margin, 18)
         );
