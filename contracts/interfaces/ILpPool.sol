@@ -98,4 +98,15 @@ interface ILpPool {
         external
         view
         returns (uint256 _inputAmount);
+
+    function getLpPosition(address user)
+        external
+        view
+        returns (
+            uint256 _margin,
+            uint256 _notionalEntryAmount,
+            uint256 _lpPositionSize
+        );
+
+    function getLpPnl(address user) external view returns (uint256 _pnl);
 }
