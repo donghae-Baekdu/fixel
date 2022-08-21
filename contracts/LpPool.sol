@@ -31,7 +31,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
     uint80 defaultLpFeeTier; // bp
     uint80 liquidationFee = 100;
 
-    uint256 collateralLocked;
+    uint256 public override collateralLocked;
     mapping(address => Position) positions;
 
     constructor(address _underlyingToken, address _factory) public {
@@ -97,11 +97,14 @@ contract LpPool is LpToken, ILpPool, Ownable {
             );
         } else {
             require(
+                msg.sender == user,
+                "Not allowed to remove liquidity as a lp"
+            );
+
+            require(
                 IERC20(underlyingToken).balanceOf(user) >= depositQty,
                 "Not Enough Balance To Deposit"
             );
-
-            _collectLpFee(user, notionalValue);
 
             (_amountToMint, _notionalValueInLpToken) = getAmountToMint(
                 notionalValue,
@@ -117,8 +120,9 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
             collateralLocked += notionalValue;
             positions[user].notionalEntryAmount += notionalValue;
-
             positions[user].margin += depositQty;
+
+            _collectLpFee(user, notionalValue);
 
             // mint token
             if (_amountToMint != 0) {
@@ -144,7 +148,6 @@ contract LpPool is LpToken, ILpPool, Ownable {
         )
     {
         uint256 potentialSupply = getPotentialSupply();
-        console.log("potentialSupply", potentialSupply);
         _amountToMint = collateralToLpTokenConvertUnit(
             potentialSupply,
             depositQty
@@ -162,7 +165,10 @@ contract LpPool is LpToken, ILpPool, Ownable {
         returns (uint256 _inputAmount)
     {
         uint256 potentialSupply = getPotentialSupply();
-        _inputAmount = LpTokenToCollateralConvertUnit(potentialSupply, outputAmount);
+        _inputAmount = lpTokenToCollateralConvertUnit(
+            potentialSupply,
+            outputAmount
+        );
     }
 
     function removeLiquidity(
@@ -203,6 +209,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
                 uint256 exchangedAmount,
                 uint256 potentialSupply
             ) = getAmountToWithdraw(notionalValue);
+
             Position storage position = positions[user];
             // collect fee
             uint256 totalFee = _collectLpFee(user, exchangedAmount);
@@ -235,7 +242,6 @@ contract LpPool is LpToken, ILpPool, Ownable {
             // transfer liquidity out if available
             IERC20(underlyingToken).transfer(user, liquidity);
             position.margin -= liquidity;
-            collateralLocked -= liquidity;
 
             emit LiquidityRemoved(user, _amountToWithdraw, liquidity);
         }
@@ -378,23 +384,16 @@ contract LpPool is LpToken, ILpPool, Ownable {
             : collateral.mul(potentialSupply).div(collateralLocked);
     }
 
-    function LpTokenToCollateralConvertUnit(
-        uint256 potentialSupply,
-        uint256 lpAmount
-    ) public view returns (uint256 _collateral) {
-        _collateral = (potentialSupply == 0 || collateralLocked == 0)
-            ? lpAmount
-                .mul(uint(10)**UNDERLYING_TOKEN_DECIMAL)
-                .mul(initialExachangeRate)
-                .div(uint(10)**decimals)
-            : lpAmount.mul(collateralLocked).div(potentialSupply);
-    }
-
     function lpTokenToCollateralConvertUnit(
         uint256 potentialSupply,
         uint256 lpToken
     ) public view returns (uint256 _collateral) {
-        _collateral = lpToken.mul(collateralLocked).div(potentialSupply);
+        _collateral = (potentialSupply == 0 || collateralLocked == 0)
+            ? lpToken
+                .mul(uint(10)**UNDERLYING_TOKEN_DECIMAL)
+                .mul(initialExachangeRate)
+                .div(uint(10)**decimals)
+            : lpToken.mul(collateralLocked).div(potentialSupply);
     }
 
     function mint(address to, uint256 value) external onlyExchanger {
@@ -420,5 +419,32 @@ contract LpPool is LpToken, ILpPool, Ownable {
     {
         _fee = isExchangerCall ? defaultExchangeFeeTier : defaultLpFeeTier;
         _feeTierDenom = feeTierDenom;
+    }
+
+    function getLpPosition(address user)
+        external
+        view
+        returns (
+            uint256 _margin,
+            uint256 _notionalEntryAmount,
+            uint256 _lpPositionSize
+        )
+    {
+        _margin = positions[user].margin;
+        _notionalEntryAmount = positions[user].notionalEntryAmount;
+        _lpPositionSize = positions[user].lpPositionSize;
+    }
+
+    function getLpPnl(address user) external view returns (uint256 _pnl) {
+        uint256 potentialSupply = getPotentialSupply();
+        _pnl = positions[user]
+            .margin
+            .add(
+                lpTokenToCollateralConvertUnit(
+                    potentialSupply,
+                    positions[user].lpPositionSize
+                )
+            )
+            .sub(positions[user].notionalEntryAmount);
     }
 }
