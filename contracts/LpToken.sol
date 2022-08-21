@@ -15,7 +15,6 @@ contract LpToken is IERC20 {
     mapping(address => uint256) public nonces;
 
     function _mint(address to, uint256 value) internal {
-
         // TODO requiremnet - set admin contract
         totalSupply = totalSupply.add(value);
         balanceOf[to] = balanceOf[to].add(value);
@@ -33,51 +32,23 @@ contract LpToken is IERC20 {
         external
         override
         returns (bool)
-    {
-        _transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    function _transfer(
-        address from,
-        address to,
-        uint256 value
-    ) private {
-        // TODO require needed
-        balanceOf[from] = balanceOf[from].sub(value);
-        balanceOf[to] = balanceOf[to].add(value);
-        emit Transfer(from, to, value);
-    }
+    {}
 
     function approve(address spender, uint256 amount)
         external
         override
         returns (bool)
-    {
-        _approve(msg.sender, spender, amount);
-        return true;
-    }
+    {}
 
     function _approve(
         address owner,
         address spender,
         uint256 value
-    ) private {
-        allowance[owner][spender] = value;
-        emit Approval(owner, spender, value);
-    }
+    ) private {}
 
     function transferFrom(
         address from,
         address to,
         uint256 amount
-    ) external override returns (bool) {
-        if (allowance[from][msg.sender] != type(uint128).max) {
-            allowance[from][msg.sender] = allowance[from][msg.sender].sub(
-                amount
-            );
-        }
-        _transfer(from, to, amount);
-        return true;
-    }
+    ) external override returns (bool) {}
 }

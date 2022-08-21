@@ -94,6 +94,8 @@ interface ILpPool {
 
     function underlyingToken() external view returns (address);
 
+    function collateralLocked() external view returns (uint256);
+
     function getInputAmountToMint(uint256 outputAmount)
         external
         view

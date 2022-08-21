@@ -31,7 +31,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
     uint80 defaultLpFeeTier; // bp
     uint80 liquidationFee = 100;
 
-    uint256 collateralLocked;
+    uint256 public override collateralLocked;
     mapping(address => Position) positions;
 
     constructor(address _underlyingToken, address _factory) public {
