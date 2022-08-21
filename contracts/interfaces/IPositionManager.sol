@@ -166,4 +166,9 @@ interface IPositionManager is IERC721Enumerable {
         uint256 margin,
         uint256 notionalValue
     ) external;
+
+    function calculateMarginWithFundingFee(uint256 tokenId)
+        external
+        view
+        returns (uint256);
 }
