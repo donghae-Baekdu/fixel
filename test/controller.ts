@@ -105,6 +105,57 @@ describe("Position Controller", async function () {
     fixture = await deployFixture();
   });
 
+  it("with no pnl", async () => {
+    const res = await fixture.PositionManagerContract.openPosition(
+      0,
+      5 * 100,
+      ethers.utils.parseUnits("10000", 6),
+      0
+    );
+
+    const position = await fixture.PositionManagerContract.positions(0);
+    const test2 =
+      await fixture.PositionManagerContract.calculateMarginWithFundingFee(0);
+    console.log(
+      convertToNumber(position.margin, 18),
+      convertToNumber(test2, 18),
+      convertToNumber(position.notionalValue, 18)
+    );
+    const inputAmount = await fixture.LpPoolContract.getInputAmountToMint(
+      ethers.utils.parseUnits("10000", 18)
+    );
+    console.log("1", convertToNumber(inputAmount, 6));
+    console.log(
+      convertToNumber(await fixture.USDC.balanceOf(fixture.owner.address), 6)
+    );
+    await fixture.PositionManagerContract.removeMargin(
+      0,
+      ethers.utils.parseUnits(
+        convertToBigNumber(position.margin).dividedBy(5).toFixed(0),
+        0
+      ),
+      ethers.utils.parseUnits(
+        convertToBigNumber(position.notionalValue).dividedBy(2).toFixed(0),
+        0
+      )
+    );
+    const positionAfter = await fixture.PositionManagerContract.positions(0);
+    const test =
+      await fixture.PositionManagerContract.calculateMarginWithFundingFee(0);
+    const inputAmount2 = await fixture.LpPoolContract.getInputAmountToMint(
+      ethers.utils.parseUnits("8000", 18)
+    );
+    console.log(
+      convertToNumber(positionAfter.margin, 18),
+      convertToNumber(test, 18),
+      convertToNumber(positionAfter.notionalValue, 18)
+    );
+    console.log("2", convertToNumber(inputAmount2, 6));
+    console.log(
+      convertToNumber(await fixture.USDC.balanceOf(fixture.owner.address), 6)
+    );
+  });
+  /*
   describe("openPosition", async () => {
     it("first position", async function () {
       await fixture.PositionManagerContract.openPosition(
@@ -402,9 +453,10 @@ describe("Position Controller", async function () {
         );
 
         const position = await fixture.PositionManagerContract.positions(11);
-
+        const test2 = await fixture.PositionManagerContract.calculateMargin(11);
         console.log(
           convertToNumber(position.margin, 18),
+          convertToNumber(test2, 18),
           convertToNumber(position.notionalValue, 18)
         );
         await fixture.PositionManagerContract.removeMargin(
@@ -423,13 +475,13 @@ describe("Position Controller", async function () {
         );
         const test = await fixture.PositionManagerContract.calculateMargin(11);
         console.log(
-          convertToString(positionAfter.margin),
-          convertToString(test),
-          convertToString(positionAfter.notionalValue)
+          convertToNumber(positionAfter.margin, 18),
+          convertToNumber(test, 18),
+          convertToNumber(positionAfter.notionalValue, 18)
         );
       });
     });
-  });
+  });*/
 });
 
 function convertToString(input: any) {

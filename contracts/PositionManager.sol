@@ -131,7 +131,6 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         require(ownerOf(tokenId) == msg.sender, "Invalid Token Id");
         require(positions[tokenId].status == Status.OPEN, "Already Closed");
         uint256 receiveAmount = _closePosition(marketId, tokenId);
-        console.log(receiveAmount);
         return receiveAmount;
     }
 
@@ -243,11 +242,9 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                 )
             )
         );
-        console.log("factor before",positions[tokenId].factor);
         positions[tokenId].factor = positions[tokenId].notionalValue.div(
             positions[tokenId].price
         );
-        console.log("factor after", positions[tokenId].factor);
     }
 
     function removeMargin(
@@ -271,16 +268,6 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             margin,
             notionalValue,
             ILpPool.exchangerCall.yes
-        );
-
-        (
-            marketStatus[marketId].pnlSign,
-            marketStatus[marketId].unrealizedPnl
-        ) = calculateUnsignedSub(
-            marketStatus[marketId].pnlSign,
-            marketStatus[marketId].unrealizedPnl,
-            Sign.POS,
-            margin
         );
 
         ValueWithSign memory pnl;
@@ -672,7 +659,6 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             isPositive = false;
             value = totalLoss.sub(totalProfit);
         }
-        console.log("get total unPnl", isPositive, value);
     }
 
     function applyUnrealizedPnl(uint32 marketId)
