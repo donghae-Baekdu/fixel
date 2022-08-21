@@ -369,15 +369,23 @@ describe("Position Controller", async function () {
         );
         const test5 = await fixture.PositionManagerContract.positions(10);
         const test6 = await fixture.PositionManagerContract.calculateMargin(10);
-        console.log("before get profit", convertToNumber(test6, 18),convertToNumber(test5.notionalValue, 18))
+        console.log(
+          "before get profit",
+          convertToNumber(test6, 18),
+          convertToNumber(test5.notionalValue, 18)
+        );
         await fixture.PriceOracleContract.setPriceOracle(0, 1089 * 10 ** 6);
         const test2 = await fixture.PositionManagerContract.calculateMargin(10);
         const test4 = await fixture.PositionManagerContract.positions(10);
 
-        console.log("margin", convertToNumber(test1, 18), convertToNumber(test2, 18));
+        console.log(
+          "margin",
+          convertToNumber(test1, 18),
+          convertToNumber(test2, 18)
+        );
 
         console.log(
-            "initial margin",
+          "initial margin",
           convertToNumber(test3.margin, 18),
           convertToNumber(test4.margin, 18)
         );
