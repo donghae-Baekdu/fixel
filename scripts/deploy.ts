@@ -26,11 +26,11 @@ async function main() {
   await PriceOracleContract.addMarket("NFT3");
   console.log("addMarkets");
   await delay(3000);
-  await PriceOracleContract.setPriceOracle(0, 1000 * 10 ** 6);
+  await PriceOracleContract.setPriceOracle(0, 147788.98 * 10 ** 6);
   await delay(3000);
-  await PriceOracleContract.setPriceOracle(1, 2000 * 10 ** 6);
+  await PriceOracleContract.setPriceOracle(1, 127214.65 * 10 ** 6);
   await delay(3000);
-  await PriceOracleContract.setPriceOracle(2, 3000 * 10 ** 6);
+  await PriceOracleContract.setPriceOracle(2, 29195.74 * 10 ** 6);
   console.log("set default price");
 
   const Factory = await ethers.getContractFactory("Factory");
@@ -54,6 +54,8 @@ async function main() {
   const lpPoolAddress = await FactoryContract.getLpPool();
   console.log("check");
   await delay(3000);
+
+  
   await LpPoolContract.setFeeTier(30, false);
   await delay(3000);
   await LpPoolContract.setFeeTier(10, true);
