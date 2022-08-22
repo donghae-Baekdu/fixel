@@ -1,8 +1,11 @@
-# Fixel: Perpetual Exchange For NFT
+# Fixel📈
+The First Perpetual NFT Exchange is Fixel
+Trade CryptoPunk, BAYC, Doodle, and other top NFT collections with up to 20x leverage
 
-# Deploy
+# How to Install and Run the Project
 
 ```
+npm install
 npx hardhat compile
 npx hardhat run scripts/deploy.ts --network <network-name>
 ```
@@ -11,50 +14,27 @@ npx hardhat run scripts/deploy.ts --network <network-name>
 
 ```
 USDC(faucet)
-0xb6e32306cb51821f6592e4fc2fe485b0f88a1267
+0x75C6Bc04462C9cd6917f8FddE5601C07DF647D7F
 
 Oracle
-0x1A0591BE6B3f1d2C152617CFdE7D337030020b37
+0xd7250e4b3Eb94990D59A19ab65d69365038B6c0e
 
 Factory
-0x8b3FA63C81D0D4D8EfB3024d51d40e2B752ca590
+0x4aCC327835b7D69365802411D72be01998C64723
 
 LpPool
-0x59a475cb6350d9beD97882Be47fFF50178dF0C4B
+0x5bC6f2611460df5Ec8eC84Fd4dEB1566b3934eD5
 
 Position Manager
-0x801Fb3DB3cA0a5B3789380525F752d5a11bB9d3E
-
-FeePot
-0x6f7a737e9A60c7aAe6558B7df93aC47Ac40C239B
-```
-
-# Mumbai contract address
-
-```
-USDC(faucet)
-0xbe269676E16ad94B2ABf67B2Bd059E4c12fb3585
-
-Oracle
-0xb25Fc2C070f2Ca7db8a385C101E73bb103809Bc2
-
-Factory
-0xDCD9594322199C0777A7B849Bc1a13b7b589b922
-
-LpPool
-0x5dBe85B99e67B6F43b447B22BC9f0673929A67eB
-
-Position Manager
-0xd6059babBAAe1cdb5aB579703106DBf40925c843
-
-FeePot
-0xDC295EF7F7A10197A998cc1b552428F33372bC67
+0x85dbe442aB04C0E0Dc76CD91520748433A8d3CDA
 ```
 
 # .env
 
 ```
-NODE_URL=
-WALLET_ADDRESS=
-PRIVATE_KEY=
+HARDHAT_NODE_URL=
+DEPLOYER_WALLET_ADDRESS=
+DEPLOYER_PRIVATE_KEY=
+POLYGON_MUMBAI_NODE_URL=
+POLYGON_MAINNET_NODE_URL=
 ```
