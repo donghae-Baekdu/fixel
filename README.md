@@ -41,6 +41,9 @@ npx hardhat run scripts/deploy.ts --network <network-name>
 # Polygon Mainnet contract address
 
 ```
+Deployer
+https://polygonscan.com/address/0x13608c928b1c6688338bd0593d1180405EcAd6C5
+
 USDC(faucet)
 0x75C6Bc04462C9cd6917f8FddE5601C07DF647D7F
 
