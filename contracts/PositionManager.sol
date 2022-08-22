@@ -88,7 +88,6 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         uint256 price = priceOracle.getPrice(marketId);
 
         uint256 tokenId = totalSupply();
-        _mint(msg.sender, tokenId);
 
         positions[tokenId] = Position(
             marketId,
@@ -105,6 +104,8 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             side,
             Status.OPEN
         );
+
+        _mint(msg.sender, tokenId);
 
         updateMarketStatusAfterTrade(
             marketId,
