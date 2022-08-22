@@ -1,5 +1,8 @@
 # Fixel📈
-The First Perpetual NFT Exchange is Fixel
+
+![Fixel](resources/Landing.jpg?raw=true "Title")
+
+The First Perpetual NFT Exchange is Fixel.
 Trade CryptoPunk, BAYC, Doodle, and other top NFT collections with up to 20x leverage
 
 # How to Install and Run the Project
