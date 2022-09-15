@@ -2,7 +2,12 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
-interface IPositionManager is IERC721Enumerable {
+interface IPositionManagerTemp is IERC721Enumerable {
+    struct ValueWithSign {
+        uint256 value;
+        bool isPos;
+    }
+
     enum TradeType {
         OPEN,
         CLOSE
@@ -19,51 +24,34 @@ interface IPositionManager is IERC721Enumerable {
     }
 
     struct Position {
+        address user;
         uint32 marketId;
-        //uint32 leverage;
-        uint256 margin;
-        uint256 notionalValue;
-        uint256 realizedMargin;
         uint256 price;
-        uint256 factor;
-        uint256 closePrice;
-        uint256 initialAccFundingFee;
-        uint256 openTimestamp;
-        uint256 closeTimestamp;
-        Sign initialFundingFeeSign;
+        uint256 qty;
+        uint256 deposit;
+        uint256 margin;
+        uint256 lastOpenTimestamp;
         bool isLong;
-        Status status;
     }
 
     struct MarketStatus {
-        //uint256 margin;
-        Sign pnlSign;
-        uint256 unrealizedPnl;
-        uint256 totalLongPositionFactor;
-        uint256 totalShortPositionFactor;
-        uint256 lastPrice;
-        uint256 lastBlockNumber;
+        ValueWithSign deltaFLP;
+        ValueWithSign notionalValuePerPriceSum;
+        uint256 totalLongNotionalValue;
+        uint256 totalShortShortNotionalValue;
     }
 
     struct MarketInfo {
         string name;
+        uint32 marketId;
         uint32 maxLeverage;
         uint32 liquidationThreshold;
+        uint32 underlyingAssetId;
     }
 
-    struct FundingFee {
-        Sign sign;
-        //Sign feeSign;
-        uint256 lastTimestamp;
-        uint256 accRate; //bp
-        //uint256 unrealizedFundingFee;
-    }
+    event ChangeMaxLeverage(uint32 marketId, uint32 maxLeverage);
 
-    event ChangeMaxLeverage(uint32 marketId, uint32 _maxLeverage);
-
-    event AddMarket(string name, uint32 marketCount, uint32 _maxLeverage);
-
-    event ApplyFundingRate(uint32 marketId, Sign sign, uint256 fundingRate);
+    event AddMarket(string name, uint32 marketCount, uint32 maxLeverage);
 
     event OpenPosition(
         address user,
@@ -139,11 +127,6 @@ interface IPositionManager is IERC721Enumerable {
         uint32 threshold
     ) external;
 
-    function calculatePositionFundingFee(uint256 tokenId)
-        external
-        view
-        returns (Sign sign, uint256 fundingFee);
-
     function applyFundingRate(
         uint32 marketId,
         Sign sign,
@@ -161,9 +144,4 @@ interface IPositionManager is IERC721Enumerable {
         uint256 margin,
         uint256 notionalValue
     ) external;
-
-    function calculateMarginWithFundingFee(uint256 tokenId)
-        external
-        view
-        returns (uint256);
 }

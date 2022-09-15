@@ -23,11 +23,9 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
     uint256 public LEVERAGE_DECIMAL = 2;
     uint256 public FUNDING_RATE_DECIMAL = 4;
 
-    address GD_TOKEN_ADDRESS;
     address USDC_TOKEN_ADDRESS;
 
     IERC20 USDC;
-    IERC20 GD;
 
     uint32 marketCount;
 
@@ -48,21 +46,18 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
 
     IFactory factoryContract;
 
-    constructor(
-        address _factoryContract,
-        address _usdc,
-        address _gd
-    ) ERC721("Renaissance Position", "rPos") {
-        factoryContract = IFactory(_factoryContract);
-        USDC = IERC20(_usdc);
-        GD = IERC20(_gd);
+    constructor(address factoryContract_, address usdc_)
+        ERC721("Renaissance Position", "rPos")
+    {
+        factoryContract = IFactory(factoryContract_);
+        USDC = IERC20(usdc_);
     }
 
     function openPosition(
         uint32 marketId,
-        uint32 leverage,
+        uint32 leverage, // TODO leverage not necessary
         uint256 liquidity,
-        Side side
+        bool isLong
     ) external {
         require(
             USDC.balanceOf(msg.sender) >= liquidity,
@@ -82,7 +77,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             msg.sender,
             liquidity,
             liquidity.mul(leverage).div(uint(10)**LEVERAGE_DECIMAL),
-            ILpPool.exchangerCall.yes
+            ILpPool.exchangerCall.yes // TODO remove exchangerCall
         );
         uint256 tradingFee = poolContract.collectExchangeFee(notionalValue);
         uint256 price = priceOracle.getPrice(marketId);
@@ -101,7 +96,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             uint256(block.timestamp),
             uint256(0),
             accFundingFee[marketId].sign,
-            side,
+            isLong,
             Status.OPEN
         );
 
@@ -109,7 +104,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
 
         updateMarketStatusAfterTrade(
             marketId,
-            side,
+            isLong,
             TradeType.OPEN,
             //margin.sub(tradingFee),
             notionalValue.div(price)
@@ -119,7 +114,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             msg.sender,
             marketId,
             leverage,
-            side,
+            isLong,
             margin.sub(tradingFee),
             tokenId
         );
@@ -179,7 +174,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             positions[tokenId].price,
             IPriceOracle(factoryContract.getPriceOracle()).getPrice(marketId),
             notionalValue,
-            positions[tokenId].side
+            positions[tokenId].isLong
         );
         {
             (, uint256 currentNotionalValue) = calculateUnsignedAdd(
@@ -202,7 +197,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         positions[tokenId].notionalValue = positions[tokenId].notionalValue.add(
             notionalValueAsGd
         );
-        if (positions[tokenId].side == Side.LONG) {
+        if (positions[tokenId].isLong == true) {
             if (pnl.sign == Sign.POS) {
                 positions[tokenId].price = (
                     IPriceOracle(factoryContract.getPriceOracle())
@@ -234,7 +229,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
 
         updateMarketStatusAfterTrade(
             positions[tokenId].marketId,
-            positions[tokenId].side,
+            positions[tokenId].isLong,
             TradeType.OPEN,
             //margin.sub(fee),
             notionalValue.div(
@@ -277,7 +272,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             positions[tokenId].price,
             IPriceOracle(factoryContract.getPriceOracle()).getPrice(marketId),
             notionalValue,
-            positions[tokenId].side
+            positions[tokenId].isLong
         );
 
         {
@@ -329,7 +324,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
 
         updateMarketStatusAfterTrade(
             marketId,
-            positions[tokenId].side,
+            positions[tokenId].isLong,
             TradeType.CLOSE,
             notionalValue.div(positions[tokenId].price)
         );
@@ -353,7 +348,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         uint256 initialPrice,
         uint256 currentPrice,
         uint256 notionalValue,
-        Side side
+        bool isLong
     ) internal pure returns (Sign pnlSign, uint256 pnl) {
         uint256 denom = uint256(10000);
         if (currentPrice > initialPrice) {
@@ -361,7 +356,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                 .mul(notionalValue)
                 .div(initialPrice)
                 .div(denom);
-            if (side == Side.LONG) {
+            if (isLong == true) {
                 pnlSign = Sign.POS;
             } else {
                 pnlSign = Sign.NEG;
@@ -371,7 +366,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
                 .mul(notionalValue)
                 .div(initialPrice)
                 .div(denom);
-            if (side == Side.LONG) {
+            if (isLong == true) {
                 pnlSign = Sign.NEG;
             } else {
                 pnlSign = Sign.POS;
@@ -388,7 +383,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         uint256 currentPrice = IPriceOracle(factoryContract.getPriceOracle())
             .getPrice(positions[tokenId].marketId);
 
-        if (positions[tokenId].side == Side.LONG) {
+        if (positions[tokenId].isLong == true) {
             if (currentPrice > positions[tokenId].price) {
                 margin = positions[tokenId].margin.add(
                     (currentPrice.sub(positions[tokenId].price)).mul(
@@ -449,7 +444,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         applyFundingFeeToPosition(tokenId);
         updateMarketStatusAfterTrade(
             marketId,
-            positions[tokenId].side,
+            positions[tokenId].isLong,
             TradeType.CLOSE,
             //positions[tokenId].margin,
             positions[tokenId].factor
@@ -457,7 +452,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
 
         ValueWithSign memory pnl;
 
-        if (positions[tokenId].side == Side.LONG) {
+        if (positions[tokenId].isLong == true) {
             if (marketStatus[marketId].lastPrice > positions[tokenId].price) {
                 pnl.sign = Sign.POS;
                 pnl.value = (
@@ -550,7 +545,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         emit ClosePosition(
             ownerOf(tokenId),
             marketId,
-            positions[tokenId].side,
+            positions[tokenId].isLong,
             pnl.sign,
             tokenId,
             positions[tokenId].margin,
@@ -562,7 +557,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
 
     function updateMarketStatusAfterTrade(
         uint32 marketId,
-        Side side,
+        bool isLong,
         TradeType tradeType,
         //uint256 margin,
         uint256 factor
@@ -573,7 +568,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             marketStatus[marketId].margin = marketStatus[marketId].margin.add(
                 margin
             );*/
-            if (side == Side.LONG) {
+            if (isLong == true) {
                 marketStatus[marketId].totalLongPositionFactor = marketStatus[
                     marketId
                 ].totalLongPositionFactor.add(factor);
@@ -587,7 +582,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
             marketStatus[marketId].margin = marketStatus[marketId].margin.sub(
                 margin
             );*/
-            if (side == Side.LONG) {
+            if (isLong == true) {
                 marketStatus[marketId].totalLongPositionFactor = marketStatus[
                     marketId
                 ].totalLongPositionFactor.sub(factor);
@@ -797,7 +792,7 @@ contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
         fundingFee = positions[tokenId].notionalValue.mul(resNum).div(
             uint256(10)**FUNDING_RATE_DECIMAL
         );
-        if (positions[tokenId].side == Side.LONG) {
+        if (positions[tokenId].isLong == true) {
             if (resSign == Sign.POS) {
                 sign = Sign.NEG;
             } else {
