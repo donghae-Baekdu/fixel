@@ -16,7 +16,7 @@ describe("LP Pool", function () {
         await USDC.mint(addr2.address, ethers.utils.parseUnits("1000000", 6));
         console.log(await USDC.balanceOf(owner.address));
         console.log(await USDC.balanceOf(addr1.address));
-        console.log(await USDC.balanceOf(addr2.address));
+        console.log(await USDC.balanceOf(addr2.address)); 
         console.log("Token minted");
       
         const PriceOracle = await ethers.getContractFactory("PriceOracle");

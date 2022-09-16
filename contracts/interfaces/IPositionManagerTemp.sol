@@ -2,7 +2,7 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
-interface IPositionManagerTemp is IERC721Enumerable {
+interface IPositionManagerTemp {
     struct ValueWithSign {
         uint256 value;
         bool isPos;
@@ -26,10 +26,9 @@ interface IPositionManagerTemp is IERC721Enumerable {
     struct Position {
         address user;
         uint32 marketId;
-        uint256 price;
+        uint256 notionalValue;
+        uint256 entryPrice;
         uint256 qty;
-        uint256 deposit;
-        uint256 margin;
         uint256 lastOpenTimestamp;
         bool isLong;
     }
@@ -82,66 +81,25 @@ interface IPositionManagerTemp is IERC721Enumerable {
 
     function openPosition(
         uint32 marketId,
-        uint32 leverage,
-        uint256 liquidity,
+        uint256 qty,
         bool isLong
     ) external;
 
-    function closePosition(uint32 marketId, uint256 tokenId)
+    function closePosition(uint32 marketId, uint256 amount)
         external
         returns (uint256);
 
-    function liquidate(uint32 marketId, uint256 tokenId) external;
-
-    function getMarketMaxLeverage(uint32 marketId)
-        external
-        view
-        returns (uint32);
-
-    function applyUnrealizedPnl(uint32 marketId)
-        external
-        returns (Sign, uint256);
-
-    function getTotalUnrealizedPnl()
-        external
-        view
-        returns (bool isPositive, uint256 value);
-
-    function getUnrealizedPnl(uint32 marketId)
-        external
-        view
-        returns (
-            Sign isPositive,
-            uint256 pnl,
-            uint256 currentPrice
-        );
-
-    function getOwnedTokensIndex(address user, uint32 marketId)
-        external
-        view
-        returns (uint256[] memory);
-
-    function addMarket(
-        string memory name,
-        uint32 _maxLeverage,
-        uint32 threshold
-    ) external;
-
-    function applyFundingRate(
-        uint32 marketId,
-        Sign sign,
-        uint256 fundingRate
-    ) external;
-
-    function addMargin(
+    function addCollateral(
         uint256 tokenId,
         uint256 liquidity,
         uint256 notionalValue // value as usdc
     ) external;
 
-    function removeMargin(
+    function removeCollateral(
         uint256 tokenId,
         uint256 margin,
         uint256 notionalValue
     ) external;
+
+    function liquidate(uint32 marketId, uint256 tokenId) external;
 }
