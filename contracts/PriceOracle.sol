@@ -9,7 +9,7 @@ contract PriceOracle is Ownable {
     mapping(uint80 => uint256) public prices;
     mapping(uint80 => string) public markets;
     uint80 marketCount;
-    
+
     uint256 public PRICE_DECIMAL = uint(6);
     event SetPrice(uint80 poolId, uint256 prices);
     event AddMarket(uint80 poolId, string name);
@@ -24,9 +24,9 @@ contract PriceOracle is Ownable {
         marketCount = marketCount + 1;
     }
 
-    function getPrice(uint80 poolId) external view returns (uint256) {
-        require(poolId < marketCount, "Invalid Pool Id");
-        return prices[poolId];
+    function getPrice(uint80 marketId) external view returns (uint256) {
+        require(marketId < marketCount, "Invalid Pool Id");
+        return prices[marketId];
     }
 
     function getPrices() external view returns (uint256[] memory) {

@@ -1,7 +1,5 @@
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
-
 interface IPositionManagerTemp {
     struct ValueWithSign {
         uint256 value;
@@ -23,14 +21,20 @@ interface IPositionManagerTemp {
         NEG
     }
 
+    struct UserInfo {
+        uint256 collateral;
+        ValueWithSign virtualBalance;
+        uint32 positionCount;
+    }
+
     struct Position {
         address user;
         uint32 marketId;
-        uint256 notionalValue;
+        ValueWithSign qty;
         uint256 entryPrice;
-        uint256 qty;
         uint256 lastOpenTimestamp;
         bool isLong;
+        bool isOpened;
     }
 
     struct MarketStatus {

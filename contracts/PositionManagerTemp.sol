@@ -1,11 +1,12 @@
 pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "./interfaces/IPriceOracle.sol";
-import "./interfaces/IFactory.sol";
-import "./interfaces/ILpPool.sol";
+import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
+import {IFactory} from "./interfaces/IFactory.sol";
+import {ILpPool} from "./interfaces/ILpPool.sol";
 import "./interfaces/IPositionManagerTemp.sol";
+import {MathWithSign} from "./libraries/MathWithSign.sol";
 import "hardhat/console.sol";
 
 //TODO: calculate funding fee -> complete
@@ -32,7 +33,7 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
 
     //user -> marketId -> position
     mapping(address => mapping(uint32 => Position)) public positions;
-    mapping(address => uint256) public collaterals;
+    mapping(address => UserInfo) public userInfos;
 
     mapping(uint32 => MarketStatus) public marketStatus;
     mapping(uint32 => MarketInfo) public marketInfo;
@@ -50,13 +51,32 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         bool isLong
     ) external {
         // side check
-        require(
-            positions[msg.sender][marketId].isLong == isLong,
-            "Not opening the position"
-        );
-        // TODO open position. input unit is position qty. record notional value in GD value.
+        Position storage position = positions[msg.sender][marketId];
+        require(position.isLong == isLong, "Not opening the position");
+        // TODO get price of asset
+        address priceOracle = factoryContract.getPriceOracle();
+        uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
 
-        // TODO update average price
+        // TODO open position. input unit is position qty. record notional value in GD value.
+        // positions[msg.sender]
+        ValueWithSign storage virtualBalance = userInfos[msg.sender]
+            .virtualBalance;
+        if (isLong) {
+            // TODO get delta of virtual balance considering decimals
+            // (virtualBalance.value, virtualBalance.isPos) = MathWithSign.sub(virtualBalance.value, virtualBalance.isPos, )
+        } else {
+            // TODO get delta of virtual balance considering decimals
+            // (virtualBalance.value, virtualBalance.isPos) = MathWithSign.sub(virtualBalance.value, virtualBalance.isPos, )
+        }
+
+        // TODO check if max leverage exceeded
+
+        if (position.isOpened) {
+            // TODO update qty
+        } else {
+            // TODO
+        }
+        // TODO update entry price
 
         // TODO take fee from open notional value
     }
@@ -69,9 +89,28 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         external
         returns (uint256)
     {
-        // TODO take fee
-        // TODO close position. input unit is position qty. reduce notional value in GD value.
-        // TODO update position
+        // TODO get price of asset
+        address priceOracle = factoryContract.getPriceOracle();
+        uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
+
+        // TODO open position. input unit is position qty. record notional value in GD value.
+        // positions[msg.sender]
+        ValueWithSign storage virtualBalance = userInfos[msg.sender]
+            .virtualBalance;
+        if (isLong) {
+            // TODO get delta of virtual balance considering decimals
+            // (virtualBalance.value, virtualBalance.isPos) = MathWithSign.sub(virtualBalance.value, virtualBalance.isPos, )
+        } else {
+            // TODO get delta of virtual balance considering decimals
+            // (virtualBalance.value, virtualBalance.isPos) = MathWithSign.sub(virtualBalance.value, virtualBalance.isPos, )
+        }
+
+        // TODO check if max leverage exceeded
+
+        // TODO update qty
+        // TODO update entry price
+
+        // TODO take fee from open notional value
     }
 
     function addCollateral(
@@ -79,7 +118,7 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         uint256 liquidity,
         uint256 notionalValue // value as usdc
     ) external {
-        // TODO pay USDC and add GD token as collateral
+        // TODO add collateral
     }
 
     function removeCollateral(
@@ -87,7 +126,16 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         uint256 margin,
         uint256 notionalValue
     ) external {
-        // TODO burn GD token and withdraw USDC
+        // TODO withdraw liquidity
+        // TODO check IM
+    }
+
+    function getAccountLeverage(address user) public view {
+        // TODO get account leverage
+    }
+
+    function getUnrealizedProfit() external view {
+        // TODO get net unrealized profit
     }
 
     function collectTradingFee(address user, uint256 tradeAmount)
@@ -97,7 +145,7 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         fee = ILpPool(factoryContract.getLpPool()).collectExchangeFee(
             tradeAmount
         );
-        collaterals[user] = collaterals[user].sub(fee);
+        // collaterals[user] = collaterals[user].sub(fee);
     }
 
     function liquidate(uint32 marketId, uint256 tokenId) external {}
