@@ -23,8 +23,9 @@ interface IPositionManagerTemp {
 
     struct UserInfo {
         uint256 collateral;
-        ValueWithSign virtualBalance;
+        ValueWithSign paidValue;
         uint32 positionCount;
+        uint32 collateralCount;
     }
 
     struct Position {
@@ -35,6 +36,14 @@ interface IPositionManagerTemp {
         uint256 lastOpenTimestamp;
         bool isLong;
         bool isOpened;
+        bool beenOpened;
+    }
+
+    struct Collateral {
+        address user;
+        uint256 qty;
+        uint32 collateralId;
+        bool beenOpened;
     }
 
     struct MarketStatus {
@@ -45,11 +54,17 @@ interface IPositionManagerTemp {
     }
 
     struct MarketInfo {
-        string name;
         uint32 marketId;
-        uint32 maxLeverage;
-        uint32 liquidationThreshold;
+        uint32 initialMarginFraction; // bp
+        uint32 maintenanceMarginFraction; // bp
+        uint8 decimals;
+    }
+
+    struct CollateralInfo {
+        uint32 collateralId;
         uint32 underlyingAssetId;
+        uint32 weight;
+        uint8 decimals;
     }
 
     event ChangeMaxLeverage(uint32 marketId, uint32 maxLeverage);

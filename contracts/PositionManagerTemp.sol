@@ -1,11 +1,11 @@
 pragma solidity ^0.8.9;
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {ILpPool} from "./interfaces/ILpPool.sol";
-import "./interfaces/IPositionManagerTemp.sol";
+import {IPositionManagerTemp} from "./interfaces/IPositionManagerTemp.sol";
 import {MathWithSign} from "./libraries/MathWithSign.sol";
 import "hardhat/console.sol";
 
@@ -19,8 +19,12 @@ import "hardhat/console.sol";
 contract PositionManagerTemp is Ownable, IPositionManagerTemp {
     using SafeMath for uint256;
 
-    uint256 public LEVERAGE_DECIMAL = 2;
-    uint256 public FUNDING_RATE_DECIMAL = 4;
+    uint8 public LEVERAGE_DECIMAL = 2;
+    uint8 public FUNDING_RATE_DECIMAL = 4;
+    uint8 public PRICE_DECIMAL = 9; // QTY_DECIMAL은 market info에
+    uint8 public VALUE_DECIMAL = 18;
+
+    uint8 public MAX_LEVERAGE = 20;
 
     address USDC_TOKEN_ADDRESS;
 
@@ -33,10 +37,14 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
 
     //user -> marketId -> position
     mapping(address => mapping(uint32 => Position)) public positions;
+    mapping(address => mapping(uint32 => Collateral)) public collaterals;
     mapping(address => UserInfo) public userInfos;
+    mapping(address => mapping(uint32 => uint32)) public userPositionList;
+    mapping(address => mapping(uint32 => uint32)) public userCollateralList;
 
     mapping(uint32 => MarketStatus) public marketStatus;
-    mapping(uint32 => MarketInfo) public marketInfo;
+    mapping(uint32 => MarketInfo) public marketInfos;
+    mapping(uint32 => CollateralInfo) public collateralInfos;
 
     IFactory factoryContract;
 
@@ -59,15 +67,22 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
 
         // TODO open position. input unit is position qty. record notional value in GD value.
         // positions[msg.sender]
-        ValueWithSign storage virtualBalance = userInfos[msg.sender]
-            .virtualBalance;
-        if (isLong) {
-            // TODO get delta of virtual balance considering decimals
-            // (virtualBalance.value, virtualBalance.isPos) = MathWithSign.sub(virtualBalance.value, virtualBalance.isPos, )
-        } else {
-            // TODO get delta of virtual balance considering decimals
-            // (virtualBalance.value, virtualBalance.isPos) = MathWithSign.sub(virtualBalance.value, virtualBalance.isPos, )
-        }
+        ValueWithSign storage paidValue = userInfos[msg.sender].paidValue;
+
+        uint256 notionalValue = MathWithSign.mul(
+            qty,
+            price,
+            marketInfos[marketId].decimals,
+            PRICE_DECIMAL,
+            VALUE_DECIMAL
+        );
+
+        (paidValue.value, paidValue.isPos) = MathWithSign.add(
+            paidValue.value,
+            notionalValue,
+            paidValue.isPos,
+            !isLong
+        );
 
         // TODO check if max leverage exceeded
 
@@ -77,6 +92,8 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
             // TODO
         }
         // TODO update entry price
+
+        // TODO update market status
 
         // TODO take fee from open notional value
     }
@@ -93,13 +110,13 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         address priceOracle = factoryContract.getPriceOracle();
         uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
 
+        Position storage position = positions[msg.sender][marketId];
+
         // TODO open position. input unit is position qty. record notional value in GD value.
         // positions[msg.sender]
-        ValueWithSign storage virtualBalance = userInfos[msg.sender]
-            .virtualBalance;
-        if (isLong) {
+        ValueWithSign storage virtualBalance = userInfos[msg.sender].paidValue;
+        if (position.isLong) {
             // TODO get delta of virtual balance considering decimals
-            // (virtualBalance.value, virtualBalance.isPos) = MathWithSign.sub(virtualBalance.value, virtualBalance.isPos, )
         } else {
             // TODO get delta of virtual balance considering decimals
             // (virtualBalance.value, virtualBalance.isPos) = MathWithSign.sub(virtualBalance.value, virtualBalance.isPos, )
@@ -149,4 +166,88 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
     }
 
     function liquidate(uint32 marketId, uint256 tokenId) external {}
+
+    function getEssentialFactors(address user)
+        public
+        view
+        returns (
+            uint256 _notionalValue,
+            uint256 _IM,
+            uint256 _MM,
+            ValueWithSign memory _willReceiveValue
+        )
+    {
+        UserInfo storage userInfo = userInfos[user];
+        uint32 positionCount = userInfo.positionCount;
+
+        address priceOracle = factoryContract.getPriceOracle();
+
+        for (uint32 i = 0; i < positionCount; i++) {
+            uint32 marketId = userPositionList[user][i];
+            Position storage position = positions[user][marketId];
+            if (position.isOpened) {
+                uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
+                MarketInfo storage marketInfo = marketInfos[marketId];
+                uint256 notionalValue = MathWithSign.mul(
+                    position.qty.value,
+                    price,
+                    marketInfo.decimals,
+                    PRICE_DECIMAL,
+                    VALUE_DECIMAL
+                );
+                _notionalValue += notionalValue;
+                // add IM
+                _IM +=
+                    (notionalValue * marketInfo.initialMarginFraction) /
+                    10000;
+                // add MM
+                _MM +=
+                    (notionalValue * marketInfo.maintenanceMarginFraction) /
+                    10000;
+                // add will receive value
+                (
+                    _willReceiveValue.value,
+                    _willReceiveValue.isPos
+                ) = MathWithSign.add(
+                    _willReceiveValue.value,
+                    notionalValue,
+                    _willReceiveValue.isPos,
+                    position.isLong
+                );
+            }
+        }
+    }
+
+    function getCollateralValue(address user)
+        public
+        view
+        returns (uint256 _collateralValue)
+    {
+        // TODO get collateral value
+        UserInfo storage userInfo = userInfos[user];
+        uint32 collateralCount = userInfo.collateralCount;
+
+        address priceOracle = factoryContract.getPriceOracle();
+
+        for (uint32 i = 0; i < collateralCount; i++) {
+            uint32 collateralId = userCollateralList[user][i];
+            Collateral storage collateral = collaterals[user][collateralId];
+            if (collateral.qty > 0) {
+                uint256 price = IPriceOracle(priceOracle).getPrice(
+                    collateralId
+                );
+                CollateralInfo storage collateralInfo = collateralInfos[
+                    collateralId
+                ];
+                uint256 value = MathWithSign.mul(
+                    collateral.qty,
+                    price,
+                    collateralInfo.decimals,
+                    PRICE_DECIMAL,
+                    VALUE_DECIMAL
+                );
+                _collateralValue += (value * collateralInfo.weight) / 10000;
+            }
+        }
+    }
 }
