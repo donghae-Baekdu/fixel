@@ -60,7 +60,12 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
     ) external {
         // side check
         Position storage position = positions[msg.sender][marketId];
-        require(position.isLong == isLong, "Not opening the position");
+        if (position.beenOpened) {
+            require(position.isLong == isLong, "Not opening the position");
+        } else {
+            position.beenOpened = true;
+            // TODO push position
+        }
         // TODO get price of asset
         address priceOracle = factoryContract.getPriceOracle();
         uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
@@ -69,7 +74,7 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         // positions[msg.sender]
         ValueWithSign storage paidValue = userInfos[msg.sender].paidValue;
 
-        uint256 notionalValue = MathWithSign.mul(
+        uint256 tradeNotionalValue = MathWithSign.mul(
             qty,
             price,
             marketInfos[marketId].decimals,
@@ -79,21 +84,25 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
 
         (paidValue.value, paidValue.isPos) = MathWithSign.add(
             paidValue.value,
-            notionalValue,
+            tradeNotionalValue,
             paidValue.isPos,
             !isLong
         );
 
+        // TODO update qty first
+
+        (
+            uint256 notionalValue,
+            uint256 IM,
+            uint256 MM,
+            ValueWithSign memory willReceiveValue
+        ) = getEssentialFactors(msg.sender);
+
         // TODO check if max leverage exceeded
 
-        if (position.isOpened) {
-            // TODO update qty
-        } else {
-            // TODO
-        }
         // TODO update entry price
 
-        // TODO update market status
+        // TODO update market status -> increase market's paid value
 
         // TODO take fee from open notional value
     }
