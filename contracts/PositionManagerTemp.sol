@@ -9,13 +9,6 @@ import {IPositionManagerTemp} from "./interfaces/IPositionManagerTemp.sol";
 import {MathWithSign} from "./libraries/MathWithSign.sol";
 import "hardhat/console.sol";
 
-//TODO: calculate funding fee -> complete
-//TODO: apply funding fee when close position -> complete
-//TODO: apply funding fee to liquidation condition -> complete
-
-//TODO: change margin structure -> complete
-//TODO: add modify position
-//TODO: add sign to currentMargin, consider negative balance
 contract PositionManagerTemp is Ownable, IPositionManagerTemp {
     using SafeMath for uint256;
 
@@ -127,30 +120,55 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
     function closePosition(
         address user,
         uint32 marketId,
-        uint256 amount
-    ) external returns (uint256) {
-        // TODO get price of asset
+        uint256 qty
+    ) external {
+        require(user == msg.sender, "No authority to order");
+        // get price of asset
         address priceOracle = factoryContract.getPriceOracle();
         uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
 
-        Position storage position = positions[msg.sender][marketId];
+        Position storage position = positions[user][marketId];
 
-        // TODO open position. input unit is position qty. record notional value in GD value.
-        // positions[msg.sender]
-        ValueWithSign storage virtualBalance = userInfos[msg.sender].paidValue;
+        require(position.qty.value > qty, "Not enough amount to close");
+
+        // TODO update paid value
+        UserInfo storage userInfo = userInfos[user];
+        ValueWithSign storage paidValue = userInfo.paidValue;
+
+        uint256 tradeNotionalValue = MathWithSign.mul(
+            qty,
+            price,
+            marketInfos[marketId].decimals,
+            PRICE_DECIMAL,
+            VALUE_DECIMAL
+        );
+
+        (paidValue.value, paidValue.isPos) = MathWithSign.add(
+            paidValue.value,
+            tradeNotionalValue,
+            paidValue.isPos,
+            position.isLong
+        );
+
+        // update qty
+        position.qty.value -= qty;
+
+        // TODO update market status
+        MarketStatus storage market = marketStatus[marketId];
+        ValueWithSign storage marketPaidValue = market.paidValue;
+
+        (marketPaidValue.value, marketPaidValue.isPos) = MathWithSign.add(
+            marketPaidValue.value,
+            tradeNotionalValue,
+            marketPaidValue.isPos,
+            position.isLong
+        );
+
         if (position.isLong) {
-            // TODO get delta of virtual balance considering decimals
+            market.longQty -= qty;
         } else {
-            // TODO get delta of virtual balance considering decimals
-            // (virtualBalance.value, virtualBalance.isPos) = MathWithSign.sub(virtualBalance.value, virtualBalance.isPos, )
+            market.shortQty -= qty;
         }
-
-        // TODO check if max leverage exceeded
-
-        // TODO update qty
-        // TODO update entry price
-
-        // TODO take fee from open notional value
     }
 
     function addCollateral(

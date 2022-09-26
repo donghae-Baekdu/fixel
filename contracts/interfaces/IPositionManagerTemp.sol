@@ -108,7 +108,7 @@ interface IPositionManagerTemp {
         address user,
         uint32 marketId,
         uint256 amount
-    ) external returns (uint256);
+    ) external;
 
     function addCollateral(
         uint256 tokenId,
