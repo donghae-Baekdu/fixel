@@ -1,4 +1,5 @@
 pragma solidity ^0.8.9;
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -172,19 +173,21 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
     }
 
     function addCollateral(
-        uint256 tokenId,
+        uint256 collateralId,
         uint256 liquidity,
         uint256 notionalValue // value as usdc
     ) external {
+        // TODO transfer token
         // TODO add collateral
     }
 
     function removeCollateral(
-        uint256 tokenId,
+        uint256 collateralId,
         uint256 margin,
         uint256 notionalValue
     ) external {
-        // TODO withdraw liquidity
+        // TODO transfer token
+        // TODO reduce collateral
         // TODO check IM
     }
 
@@ -202,7 +205,9 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         // collaterals[user] = collaterals[user].sub(fee);
     }
 
-    function liquidate(uint32 marketId, uint256 tokenId) external {}
+    function liquidate(uint32 marketId, uint256 tokenId) external {
+        // TODO
+    }
 
     function getEssentialFactors(address user)
         public
@@ -316,7 +321,8 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
 
         require(
             accountValue.isPos &&
-                accountValue.value * MAX_LEVERAGE > notionalValue,
+                accountValue.value * MAX_LEVERAGE > notionalValue &&
+                accountValue.value > IM,
             "Exceeds Max Leverage"
         );
     }
