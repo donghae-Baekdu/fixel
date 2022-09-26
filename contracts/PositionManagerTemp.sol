@@ -54,25 +54,29 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
     }
 
     function openPosition(
+        address user,
         uint32 marketId,
         uint256 qty,
         bool isLong
     ) external {
+        require(user == msg.sender, "No authority to order");
         // side check
-        Position storage position = positions[msg.sender][marketId];
+        Position storage position = positions[user][marketId];
+        UserInfo storage userInfo = userInfos[user];
         if (position.beenOpened) {
             require(position.isLong == isLong, "Not opening the position");
         } else {
             position.beenOpened = true;
-            // TODO push position
+            // push position
+            userPositionList[user][userInfo.positionCount];
+            userInfo.positionCount++;
         }
-        // TODO get price of asset
+        // get price of asset
         address priceOracle = factoryContract.getPriceOracle();
         uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
 
-        // TODO open position. input unit is position qty. record notional value in GD value.
-        // positions[msg.sender]
-        ValueWithSign storage paidValue = userInfos[msg.sender].paidValue;
+        // open position. input unit is position qty. record notional value in GD value.
+        ValueWithSign storage paidValue = userInfo.paidValue;
 
         uint256 tradeNotionalValue = MathWithSign.mul(
             qty,
@@ -89,16 +93,10 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
             !isLong
         );
 
-        // TODO update qty first
+        // update qty first
+        position.qty.value += qty;
 
-        (
-            uint256 notionalValue,
-            uint256 IM,
-            uint256 MM,
-            ValueWithSign memory willReceiveValue
-        ) = getEssentialFactors(msg.sender);
-
-        // TODO check if max leverage exceeded
+        checkMaxLeverage(msg.sender);
 
         // TODO update entry price
 
@@ -111,10 +109,11 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
     // 1. deltaGD - pnl
     // 2. collateral + pnl
     // no need side check
-    function closePosition(uint32 marketId, uint256 amount)
-        external
-        returns (uint256)
-    {
+    function closePosition(
+        address user,
+        uint32 marketId,
+        uint256 amount
+    ) external returns (uint256) {
         // TODO get price of asset
         address priceOracle = factoryContract.getPriceOracle();
         uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
@@ -258,5 +257,38 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
                 _collateralValue += (value * collateralInfo.weight) / 10000;
             }
         }
+    }
+
+    function checkMaxLeverage(address user) internal view {
+        (
+            uint256 notionalValue,
+            uint256 IM,
+            uint256 MM,
+            ValueWithSign memory willReceiveValue
+        ) = getEssentialFactors(user);
+
+        uint256 collateralValue = getCollateralValue(user);
+
+        ValueWithSign memory accountValue;
+        ValueWithSign storage paidValue = userInfos[user].paidValue;
+        (accountValue.value, accountValue.isPos) = MathWithSign.add(
+            willReceiveValue.value,
+            paidValue.value,
+            willReceiveValue.isPos,
+            paidValue.isPos
+        );
+
+        (accountValue.value, accountValue.isPos) = MathWithSign.add(
+            collateralValue,
+            accountValue.value,
+            true,
+            accountValue.isPos
+        );
+
+        require(
+            accountValue.isPos &&
+                accountValue.value * MAX_LEVERAGE > notionalValue,
+            "Exceeds Max Leverage"
+        );
     }
 }

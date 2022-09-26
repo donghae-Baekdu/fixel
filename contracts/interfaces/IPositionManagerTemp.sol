@@ -99,14 +99,17 @@ interface IPositionManagerTemp {
     );
 
     function openPosition(
+        address user,
         uint32 marketId,
         uint256 qty,
         bool isLong
     ) external;
 
-    function closePosition(uint32 marketId, uint256 amount)
-        external
-        returns (uint256);
+    function closePosition(
+        address user,
+        uint32 marketId,
+        uint256 amount
+    ) external returns (uint256);
 
     function addCollateral(
         uint256 tokenId,
@@ -121,4 +124,9 @@ interface IPositionManagerTemp {
     ) external;
 
     function liquidate(uint32 marketId, uint256 tokenId) external;
+
+    function getCollateralValue(address user)
+        external
+        view
+        returns (uint256 _collateralValue);
 }
