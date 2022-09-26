@@ -47,10 +47,9 @@ interface IPositionManagerTemp {
     }
 
     struct MarketStatus {
-        ValueWithSign deltaFLP;
-        ValueWithSign notionalValuePerPriceSum;
-        uint256 totalLongNotionalValue;
-        uint256 totalShortShortNotionalValue;
+        ValueWithSign paidValue;
+        uint256 longQty;
+        uint256 shortQty;
     }
 
     struct MarketInfo {

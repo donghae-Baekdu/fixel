@@ -93,14 +93,29 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
             !isLong
         );
 
-        // update qty first
+        position.entryPrice =
+            (position.entryPrice * position.qty.value + price * qty) /
+            (position.qty.value + qty);
         position.qty.value += qty;
 
         checkMaxLeverage(msg.sender);
 
-        // TODO update entry price
+        // update market status -> increase market's paid value
+        MarketStatus storage market = marketStatus[marketId];
+        ValueWithSign storage marketPaidValue = market.paidValue;
 
-        // TODO update market status -> increase market's paid value
+        (marketPaidValue.value, marketPaidValue.isPos) = MathWithSign.add(
+            marketPaidValue.value,
+            tradeNotionalValue,
+            marketPaidValue.isPos,
+            !isLong
+        );
+
+        if (isLong) {
+            market.longQty += qty;
+        } else {
+            market.shortQty += qty;
+        }
 
         // TODO take fee from open notional value
     }
@@ -153,10 +168,6 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
     ) external {
         // TODO withdraw liquidity
         // TODO check IM
-    }
-
-    function getAccountLeverage(address user) public view {
-        // TODO get account leverage
     }
 
     function getUnrealizedProfit() external view {
@@ -290,5 +301,9 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
                 accountValue.value * MAX_LEVERAGE > notionalValue,
             "Exceeds Max Leverage"
         );
+    }
+
+    function collectTradingFee() internal {
+        // TODO collect trading fee
     }
 }
