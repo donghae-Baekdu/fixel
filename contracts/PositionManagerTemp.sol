@@ -267,13 +267,6 @@ contract PositionManagerTemp is
         }
     }
 
-    function collectTradingFee(address user, uint256 tradeAmount)
-        internal
-        returns (uint256 _fee)
-    {
-        // TODO
-    }
-
     function liquidate(
         address user,
         uint32 marketId,
@@ -451,3 +444,4 @@ contract PositionManagerTemp is
 
 // TODO
 // fee 수취시 net pnl에 끼치는 영향
+// liquidation
