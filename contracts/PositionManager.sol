@@ -1,960 +1,443 @@
 pragma solidity ^0.8.9;
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "./interfaces/IPriceOracle.sol";
-import "./interfaces/IFactory.sol";
-import "./interfaces/ILpPool.sol";
-import "./interfaces/IPositionManager.sol";
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
+import {IFactory} from "./interfaces/IFactory.sol";
+import {ILpPool} from "./interfaces/ILpPool.sol";
+import {IPositionManager} from "./interfaces/IPositionManager.sol";
+import {MathUtil} from "./libraries/MathUtil.sol";
+import {PositionManagerStorage} from "./PositionManagerStorage.sol";
 import "hardhat/console.sol";
 
-//TODO: calculate funding fee -> complete
-//TODO: apply funding fee when close position -> complete
-//TODO: apply funding fee to liquidation condition -> complete
-
-//TODO: change margin structure -> complete
-//TODO: add modify position
-//TODO: add sign to currentMargin, consider negative balance
-contract PositionManager is ERC721Enumerable, Ownable, IPositionManager {
+contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
     using SafeMath for uint256;
-    using SafeMath for uint32;
 
-    uint256 public LEVERAGE_DECIMAL = 2;
-    uint256 public FUNDING_RATE_DECIMAL = 4;
-
-    address USDC_TOKEN_ADDRESS;
-
-    IERC20 USDC;
-
-    uint32 marketCount;
-
-    struct ValueWithSign {
-        Sign sign;
-        uint256 value;
-    }
-    mapping(uint256 => Position) public positions;
-
-    mapping(address => mapping(uint32 => uint256[])) public userMarketPositions;
-    //user -> tokenId -> index
-    mapping(address => mapping(uint256 => uint256))
-        public userMarketPositionsIndex;
-
-    mapping(uint32 => MarketStatus) public marketStatus;
-    mapping(uint32 => MarketInfo) public marketInfo;
-    mapping(uint32 => FundingFee) public accFundingFee;
-
-    IFactory factoryContract;
-
-    constructor(address factoryContract_, address usdc_)
-        ERC721("Renaissance Position", "rPos")
-    {
+    constructor(address factoryContract_) {
         factoryContract = IFactory(factoryContract_);
-        USDC = IERC20(usdc_);
     }
 
     function openPosition(
+        address user,
         uint32 marketId,
-        uint32 leverage, // TODO leverage not necessary
-        uint256 liquidity,
+        uint256 qty,
         bool isLong
     ) external {
-        require(
-            USDC.balanceOf(msg.sender) >= liquidity,
-            "Insufficient Balance"
-        );
-        require(
-            leverage <= marketInfo[marketId].maxLeverage,
-            "Excessive Leverage"
-        );
-
-        ILpPool poolContract = ILpPool(factoryContract.getLpPool());
-        IPriceOracle priceOracle = IPriceOracle(
-            factoryContract.getPriceOracle()
-        );
-
-        (uint256 margin, uint256 notionalValue) = poolContract.addLiquidity(
-            msg.sender,
-            liquidity,
-            liquidity.mul(leverage).div(uint(10)**LEVERAGE_DECIMAL),
-            ILpPool.exchangerCall.yes // TODO remove exchangerCall
-        );
-        uint256 tradingFee = poolContract.collectExchangeFee(notionalValue);
-        uint256 price = priceOracle.getPrice(marketId);
-
-        uint256 tokenId = totalSupply();
-
-        positions[tokenId] = Position(
-            marketId,
-            margin.sub(tradingFee),
-            notionalValue,
-            uint256(0),
-            price,
-            notionalValue.div(price),
-            uint256(0),
-            accFundingFee[marketId].accRate,
-            uint256(block.timestamp),
-            uint256(0),
-            accFundingFee[marketId].sign,
-            isLong,
-            Status.OPEN
-        );
-
-        _mint(msg.sender, tokenId);
-
-        updateMarketStatusAfterTrade(
-            marketId,
-            isLong,
-            TradeType.OPEN,
-            //margin.sub(tradingFee),
-            notionalValue.div(price)
-        );
-
-        emit OpenPosition(
-            msg.sender,
-            marketId,
-            leverage,
-            isLong,
-            margin.sub(tradingFee),
-            tokenId
-        );
-    }
-
-    function closePosition(uint32 marketId, uint256 tokenId)
-        external
-        returns (uint256)
-    {
-        require(ownerOf(tokenId) == msg.sender, "Invalid Token Id");
-        require(positions[tokenId].status == Status.OPEN, "Already Closed");
-        uint256 receiveAmount = _closePosition(marketId, tokenId);
-        return receiveAmount;
-    }
-
-    function liquidate(uint32 marketId, uint256 tokenId) external {
-        require(positions[tokenId].status == Status.OPEN, "Already Closed");
-
-        uint256 currentMargin = calculateMarginWithFundingFee(tokenId);
-
-        uint256 marginRatio = currentMargin.mul(uint256(10000)).div(
-            positions[tokenId].notionalValue
-        );
-        require(
-            marginRatio < marketInfo[marketId].liquidationThreshold,
-            "Not Liquidatable"
-        );
-        uint256 returnAmount = _closePosition(marketId, tokenId);
-        USDC.transfer(msg.sender, returnAmount);
-        emit Liquidation(ownerOf(tokenId), msg.sender, marketId, tokenId);
-    }
-
-    function addMargin(
-        uint256 tokenId,
-        uint256 liquidity,
-        uint256 notionalValue // value as usdc
-    ) external {
-        require(positions[tokenId].status == Status.OPEN, "Already Closed");
-        uint32 marketId = positions[tokenId].marketId;
-        applyUnrealizedPnl(marketId);
-        applyFundingFeeToPosition(tokenId);
-
-        uint256 currentMargin = calculateMargin(tokenId);
-
-        (uint256 margin, uint256 notionalValueAsGd) = ILpPool(
-            factoryContract.getLpPool()
-        ).addLiquidity(
-                msg.sender,
-                liquidity,
-                notionalValue,
-                ILpPool.exchangerCall.yes
-            );
-
-        ValueWithSign memory pnl;
-
-        (pnl.sign, pnl.value) = calculatePnl(
-            positions[tokenId].price,
-            IPriceOracle(factoryContract.getPriceOracle()).getPrice(marketId),
-            notionalValue,
-            positions[tokenId].isLong
-        );
-        {
-            (, uint256 currentNotionalValue) = calculateUnsignedAdd(
-                Sign.POS,
-                positions[tokenId].notionalValue,
-                pnl.sign,
-                pnl.value
-            );
-
-            require(
-                (currentMargin.add(margin)).mul(
-                    marketInfo[marketId].maxLeverage
-                ) >= currentNotionalValue.add(notionalValue),
-                "Exceed Max Leverage"
-            );
-        }
-        collectTradingFee(tokenId, notionalValueAsGd);
-
-        positions[tokenId].margin = positions[tokenId].margin.add(margin);
-        positions[tokenId].notionalValue = positions[tokenId].notionalValue.add(
-            notionalValueAsGd
-        );
-        if (positions[tokenId].isLong == true) {
-            if (pnl.sign == Sign.POS) {
-                positions[tokenId].price = (
-                    IPriceOracle(factoryContract.getPriceOracle())
-                        .getPrice(marketId)
-                        .mul(positions[tokenId].notionalValue)
-                ).div(positions[tokenId].notionalValue.add(pnl.value));
-            } else {
-                positions[tokenId].price = (
-                    IPriceOracle(factoryContract.getPriceOracle())
-                        .getPrice(marketId)
-                        .mul(positions[tokenId].notionalValue)
-                ).div(positions[tokenId].notionalValue.sub(pnl.value));
-            }
+        require(user == msg.sender, "No authority to order");
+        // side check
+        Position storage position = positions[user][marketId];
+        UserInfo storage userInfo = userInfos[user];
+        if (position.beenOpened) {
+            require(position.isLong == isLong, "Not opening the position");
         } else {
-            if (pnl.sign == Sign.POS) {
-                positions[tokenId].price = (
-                    IPriceOracle(factoryContract.getPriceOracle())
-                        .getPrice(marketId)
-                        .mul(positions[tokenId].notionalValue)
-                ).div(positions[tokenId].notionalValue.sub(pnl.value));
-            } else {
-                positions[tokenId].price = (
-                    IPriceOracle(factoryContract.getPriceOracle())
-                        .getPrice(marketId)
-                        .mul(positions[tokenId].notionalValue)
-                ).div(positions[tokenId].notionalValue.add(pnl.value));
-            }
+            position.beenOpened = true;
+            // push position
+            userPositionList[user][userInfo.positionCount];
+            userInfo.positionCount++;
         }
 
-        updateMarketStatusAfterTrade(
-            positions[tokenId].marketId,
-            positions[tokenId].isLong,
-            TradeType.OPEN,
-            //margin.sub(fee),
-            notionalValue.div(
-                IPriceOracle(factoryContract.getPriceOracle()).getPrice(
-                    marketId
-                )
-            )
-        );
-        positions[tokenId].factor = positions[tokenId].notionalValue.div(
-            positions[tokenId].price
-        );
+        updateStatusAfterTrade(user, position, marketId, qty, false);
     }
 
-    function removeMargin(
-        uint256 tokenId,
-        uint256 margin,
-        uint256 notionalValue
-    ) external {
-        require(positions[tokenId].status == Status.OPEN, "Already Closed");
-        uint32 marketId = positions[tokenId].marketId;
-        applyUnrealizedPnl(marketId);
-        applyFundingFeeToPosition(tokenId);
-
-        // sub trading fee
-        collectTradingFee(tokenId, notionalValue);
-
-        uint256 currentMargin = calculateMargin(tokenId);
-        require(currentMargin >= margin, "Insufficient Margin");
-
-        ILpPool(factoryContract.getLpPool()).removeLiquidity(
-            msg.sender,
-            margin,
-            notionalValue,
-            ILpPool.exchangerCall.yes
-        );
-
-        ValueWithSign memory pnl;
-
-        (pnl.sign, pnl.value) = calculatePnl(
-            positions[tokenId].price,
-            IPriceOracle(factoryContract.getPriceOracle()).getPrice(marketId),
-            notionalValue,
-            positions[tokenId].isLong
-        );
-
-        {
-            (, uint256 currentNotionalValue) = calculateUnsignedAdd(
-                Sign.POS,
-                positions[tokenId].notionalValue,
-                pnl.sign,
-                pnl.value
-            );
-            require(
-                (currentMargin.sub(margin)).mul(
-                    marketInfo[marketId].maxLeverage
-                ) >= currentNotionalValue.sub(notionalValue),
-                "Exceed Max Leverage"
-            );
-        }
-        positions[tokenId].realizedMargin = positions[tokenId]
-            .realizedMargin
-            .add(margin);
-
-        (
-            marketStatus[marketId].pnlSign,
-            marketStatus[marketId].unrealizedPnl
-        ) = calculateUnsignedSub(
-            marketStatus[marketId].pnlSign,
-            marketStatus[marketId].unrealizedPnl,
-            pnl.sign,
-            pnl.value
-        );
-
-        if (pnl.sign == Sign.POS) {
-            ILpPool(factoryContract.getLpPool()).mint(address(this), pnl.value);
-        } else {
-            ILpPool(factoryContract.getLpPool()).burn(address(this), pnl.value);
-        }
-
-        (, positions[tokenId].margin) = calculateUnsignedAdd(
-            Sign.POS,
-            positions[tokenId].margin,
-            pnl.sign,
-            pnl.value
-        );
-
-        //positions[tokenId].margin = positions[tokenId].margin.sub(fee);
-
-        positions[tokenId].notionalValue = positions[tokenId].notionalValue.sub(
-            notionalValue
-        );
-
-        updateMarketStatusAfterTrade(
-            marketId,
-            positions[tokenId].isLong,
-            TradeType.CLOSE,
-            notionalValue.div(positions[tokenId].price)
-        );
-
-        positions[tokenId].factor = positions[tokenId].notionalValue.div(
-            positions[tokenId].price
-        );
-    }
-
-    function collectTradingFee(uint256 tokenId, uint256 tradeAmount)
-        internal
-        returns (uint256 fee)
-    {
-        fee = ILpPool(factoryContract.getLpPool()).collectExchangeFee(
-            tradeAmount
-        );
-        positions[tokenId].margin = positions[tokenId].margin.sub(fee);
-    }
-
-    function calculatePnl(
-        uint256 initialPrice,
-        uint256 currentPrice,
-        uint256 notionalValue,
-        bool isLong
-    ) internal pure returns (Sign pnlSign, uint256 pnl) {
-        uint256 denom = uint256(10000);
-        if (currentPrice > initialPrice) {
-            pnl = (currentPrice.sub(initialPrice))
-                .mul(notionalValue)
-                .div(initialPrice)
-                .div(denom);
-            if (isLong == true) {
-                pnlSign = Sign.POS;
-            } else {
-                pnlSign = Sign.NEG;
-            }
-        } else {
-            pnl = (initialPrice.sub(currentPrice))
-                .mul(notionalValue)
-                .div(initialPrice)
-                .div(denom);
-            if (isLong == true) {
-                pnlSign = Sign.NEG;
-            } else {
-                pnlSign = Sign.POS;
-            }
-        }
-    }
-
-    function calculateMargin(uint256 tokenId)
-        public
-        view
-        returns (uint256 margin)
-    {
-        require(positions[tokenId].status == Status.OPEN, "Alread Closed");
-        uint256 currentPrice = IPriceOracle(factoryContract.getPriceOracle())
-            .getPrice(positions[tokenId].marketId);
-
-        if (positions[tokenId].isLong == true) {
-            if (currentPrice > positions[tokenId].price) {
-                margin = positions[tokenId].margin.add(
-                    (currentPrice.sub(positions[tokenId].price)).mul(
-                        positions[tokenId].factor
-                    )
-                );
-            } else {
-                margin = positions[tokenId].margin.sub(
-                    (positions[tokenId].price.sub(currentPrice)).mul(
-                        positions[tokenId].factor
-                    )
-                );
-            }
-        } else {
-            if (currentPrice > positions[tokenId].price) {
-                margin = positions[tokenId].margin.sub(
-                    (currentPrice.sub(positions[tokenId].price)).mul(
-                        positions[tokenId].factor
-                    )
-                );
-            } else {
-                margin = positions[tokenId].margin.add(
-                    (positions[tokenId].price.sub(currentPrice)).mul(
-                        positions[tokenId].factor
-                    )
-                );
-            }
-        }
-        margin = margin.sub(positions[tokenId].realizedMargin);
-    }
-
-    function calculateMarginWithFundingFee(uint256 tokenId)
-        public
-        view
-        returns (uint256)
-    {
-        (Sign fundingFeeSign, uint256 fundingFee) = calculatePositionFundingFee(
-            tokenId
-        );
-        uint256 currentMargin = calculateMargin(tokenId);
-
-        if (fundingFeeSign == Sign.POS) {
-            currentMargin = currentMargin.add(fundingFee);
-        } else {
-            if (currentMargin < fundingFee) {
-                currentMargin = 0;
-            } else {
-                currentMargin = currentMargin.sub(fundingFee);
-            }
-        }
-        return currentMargin;
-    }
-
-    function _closePosition(uint32 marketId, uint256 tokenId)
-        internal
-        returns (uint256)
-    {
-        applyFundingFeeToPosition(tokenId);
-        updateMarketStatusAfterTrade(
-            marketId,
-            positions[tokenId].isLong,
-            TradeType.CLOSE,
-            //positions[tokenId].margin,
-            positions[tokenId].factor
-        );
-
-        ValueWithSign memory pnl;
-
-        if (positions[tokenId].isLong == true) {
-            if (marketStatus[marketId].lastPrice > positions[tokenId].price) {
-                pnl.sign = Sign.POS;
-                pnl.value = (
-                    marketStatus[marketId].lastPrice.sub(
-                        positions[tokenId].price
-                    )
-                ).mul(positions[tokenId].factor);
-            } else {
-                pnl.sign = Sign.NEG;
-                pnl.value = (
-                    positions[tokenId].price.sub(
-                        marketStatus[marketId].lastPrice
-                    )
-                ).mul(positions[tokenId].factor);
-            }
-        } else {
-            if (marketStatus[marketId].lastPrice > positions[tokenId].price) {
-                pnl.sign = Sign.NEG;
-                pnl.value = (
-                    marketStatus[marketId].lastPrice.sub(
-                        positions[tokenId].price
-                    )
-                ).mul(positions[tokenId].factor);
-            } else {
-                pnl.sign = Sign.POS;
-                pnl.value = (
-                    positions[tokenId].price.sub(
-                        marketStatus[marketId].lastPrice
-                    )
-                ).mul(positions[tokenId].factor);
-            }
-        }
-        /*
-        (Sign deltaSign, uint256 delta) = calculatePositionFundingFee(tokenId);
-        (deltaSign, delta) = calculateUnsignedAdd(
-            pnl.sign,
-            pnl.value,
-            deltaSign,
-            delta
-        );
-        */
-        address lpPoolAddress = factoryContract.getLpPool();
-        uint256 receiveAmount;
-
-        //realize pnl
-        (
-            marketStatus[marketId].pnlSign,
-            marketStatus[marketId].unrealizedPnl
-        ) = calculateUnsignedSub(
-            marketStatus[marketId].pnlSign,
-            marketStatus[marketId].unrealizedPnl,
-            pnl.sign,
-            pnl.value
-        );
-
-        (, uint256 closeAmount) = calculateUnsignedAdd(
-            Sign.POS,
-            positions[tokenId].notionalValue,
-            pnl.sign,
-            pnl.value
-        );
-        collectTradingFee(tokenId, closeAmount);
-
-        if (pnl.sign == Sign.POS) {
-            ILpPool(lpPoolAddress).mint(address(this), pnl.value);
-
-            receiveAmount = ILpPool(lpPoolAddress).removeLiquidity(
-                ownerOf(tokenId),
-                positions[tokenId].margin.add(pnl.value),
-                closeAmount,
-                ILpPool.exchangerCall.yes
-            );
-        } else {
-            uint256 burnAmount = pnl.value > positions[marketId].margin
-                ? positions[marketId].margin
-                : pnl.value;
-            ILpPool(lpPoolAddress).burn(address(this), burnAmount);
-            receiveAmount = ILpPool(lpPoolAddress).removeLiquidity(
-                ownerOf(tokenId),
-                positions[tokenId].margin.sub(burnAmount),
-                closeAmount,
-                ILpPool.exchangerCall.yes
-            );
-        }
-
-        positions[tokenId].status = Status.CLOSE;
-        positions[tokenId].closePrice = marketStatus[marketId].lastPrice;
-        positions[tokenId].closeTimestamp = uint256(block.timestamp);
-
-        emit ClosePosition(
-            ownerOf(tokenId),
-            marketId,
-            positions[tokenId].isLong,
-            pnl.sign,
-            tokenId,
-            positions[tokenId].margin,
-            pnl.value,
-            receiveAmount
-        );
-        return receiveAmount;
-    }
-
-    function updateMarketStatusAfterTrade(
+    function closePosition(
+        address user,
         uint32 marketId,
-        bool isLong,
-        TradeType tradeType,
-        //uint256 margin,
-        uint256 factor
+        uint256 qty
+    ) external {
+        require(user == msg.sender, "No authority to order");
+        // get price of asset
+        address priceOracle = factoryContract.getPriceOracle();
+        uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
+
+        Position storage position = positions[user][marketId];
+
+        require(position.qty.value > qty, "Not enough amount to close");
+
+        updateStatusAfterTrade(user, position, marketId, qty, false);
+    }
+
+    function updateStatusAfterTrade(
+        address user,
+        Position storage position,
+        uint32 marketId,
+        uint256 qty,
+        bool isOpen
     ) internal {
-        applyUnrealizedPnl(marketId);
-        if (tradeType == TradeType.OPEN) {
-            /*
-            marketStatus[marketId].margin = marketStatus[marketId].margin.add(
-                margin
-            );*/
-            if (isLong == true) {
-                marketStatus[marketId].totalLongPositionFactor = marketStatus[
-                    marketId
-                ].totalLongPositionFactor.add(factor);
+        address priceOracle = factoryContract.getPriceOracle();
+        uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
+        UserInfo storage userInfo = userInfos[user];
+
+        ValueWithSign storage paidValue = userInfo.paidValue;
+
+        uint256 paidValueDelta = MathUtil.mul(
+            qty,
+            price,
+            marketInfos[marketId].decimals,
+            PRICE_DECIMAL,
+            VALUE_DECIMAL
+        );
+
+        // take fee from open notional value
+        uint256 fee = (paidValueDelta * feeTier[user]) / 10000;
+
+        bool paidValueDeltaIsPos = isOpen ? !position.isLong : position.isLong;
+
+        paidValueDelta = paidValueDeltaIsPos
+            ? paidValueDelta - fee
+            : paidValueDelta + fee;
+
+        (paidValue.value, paidValue.isPos) = MathUtil.add(
+            paidValue.value,
+            paidValueDelta,
+            paidValue.isPos,
+            paidValueDeltaIsPos
+        );
+
+        // update qty
+        if (isOpen) {
+            position.qty.value += qty;
+            position.entryPrice =
+                (position.entryPrice * position.qty.value + price * qty) /
+                (position.qty.value + qty);
+
+            checkMaxLeverage(user);
+
+            MarketStatus storage market = marketStatus[marketId];
+
+            if (position.isLong) {
+                market.longQty += qty;
             } else {
-                marketStatus[marketId].totalShortPositionFactor = marketStatus[
-                    marketId
-                ].totalShortPositionFactor.add(factor);
+                market.shortQty += qty;
             }
-        } else if (tradeType == TradeType.CLOSE) {
-            /*
-            marketStatus[marketId].margin = marketStatus[marketId].margin.sub(
-                margin
-            );*/
-            if (isLong == true) {
-                marketStatus[marketId].totalLongPositionFactor = marketStatus[
-                    marketId
-                ].totalLongPositionFactor.sub(factor);
+        } else {
+            position.qty.value -= qty;
+
+            MarketStatus storage market = marketStatus[marketId];
+
+            if (position.isLong) {
+                market.longQty -= qty;
             } else {
-                marketStatus[marketId].totalShortPositionFactor = marketStatus[
-                    marketId
-                ].totalShortPositionFactor.sub(factor);
+                market.shortQty -= qty;
             }
+        }
+
+        (netPaidValue.value, netPaidValue.isPos) = MathUtil.add(
+            netPaidValue.value,
+            paidValueDelta,
+            netPaidValue.isPos,
+            paidValueDeltaIsPos
+        );
+    }
+
+    function addCollateral(
+        address user,
+        uint32 collateralId,
+        uint256 amount
+    ) external {
+        // transfer token
+        address tokenAddress = collateralInfos[collateralId].tokenAddress;
+        address lpPool = factoryContract.getLpPool();
+        IERC20(tokenAddress).transferFrom(user, lpPool, amount);
+
+        if (collateralId == 0) {
+            ValueWithSign storage paidValue = userInfos[user].paidValue;
+            (paidValue.value, paidValue.isPos) = MathUtil.add(
+                paidValue.value,
+                MathUtil.convertDecimals(
+                    amount,
+                    collateralInfos[0].decimals,
+                    VALUE_DECIMAL
+                ),
+                paidValue.isPos,
+                true
+            );
+        } else {
+            Collateral storage collateral = collaterals[user][collateralId];
+            // add to collateral list
+            if (!collateral.beenDeposited) {
+                UserInfo storage userInfo = userInfos[user];
+                userCollateralList[user][
+                    userInfo.collateralCount
+                ] = collateralId;
+                userInfo.collateralCount++;
+                collateral.beenDeposited = true;
+            }
+            // add collateral
+            collateral.qty += amount;
         }
     }
 
-    function addMarket(
-        string memory _name,
-        uint32 _maxLeverage,
-        uint32 _threshold
-    ) public onlyOwner {
-        marketInfo[marketCount].name = _name;
-        marketInfo[marketCount].maxLeverage = _maxLeverage;
-        marketInfo[marketCount].liquidationThreshold = _threshold;
-        emit AddMarket(_name, marketCount, _maxLeverage);
-        marketCount = marketCount + 1;
+    function removeCollateral(
+        address user,
+        uint32 collateralId,
+        uint256 amount
+    ) external {
+        (
+            uint256 notionalValue,
+            uint256 IM,
+            ValueWithSign memory willReceiveValue
+        ) = getLeverageFactors(user);
+
+        if (collateralId == 0) {
+            ValueWithSign storage paidValue = userInfos[user].paidValue;
+            (uint256 usdQty, bool usdIsPos) = MathUtil.add(
+                willReceiveValue.value,
+                paidValue.value,
+                willReceiveValue.isPos,
+                paidValue.isPos
+            );
+
+            uint256 amountToValueUnit = MathUtil.convertDecimals(
+                amount,
+                collateralInfos[0].decimals,
+                VALUE_DECIMAL
+            );
+            require(
+                usdIsPos == true && usdQty >= amountToValueUnit,
+                "Not enough usd to withdraw"
+            );
+
+            (paidValue.value, paidValue.isPos) = MathUtil.sub(
+                paidValue.value,
+                amountToValueUnit,
+                paidValue.isPos,
+                true
+            );
+        } else {
+            Collateral storage collateral = collaterals[user][collateralId];
+            require(collateral.qty >= amount, "Not enough token to withdraw");
+
+            // reduce collateral
+            collateral.qty -= amount;
+        }
+        uint256 collateralValue = getCollateralValue(user);
+
+        checkMaxLeverageRequirement(
+            user,
+            notionalValue,
+            IM,
+            collateralValue,
+            willReceiveValue
+        );
+
+        // transfer token
+        if (collateralId == 0) {
+            // TODO mint stable coin
+        } else {
+            address tokenAddress = collateralInfos[collateralId].tokenAddress;
+            address lpPool = factoryContract.getLpPool();
+            IERC20(tokenAddress).transferFrom(lpPool, user, amount);
+        }
     }
 
-    function changeMaxLeverage(uint32 marketId, uint32 _maxLeverage)
-        public
-        onlyOwner
-    {
-        require(_maxLeverage > 0, "Max Leverage Should Be Positive");
-        require(marketId < marketCount, "Invalid Pool Id");
-        marketInfo[marketId].maxLeverage = _maxLeverage;
-        emit ChangeMaxLeverage(marketId, _maxLeverage);
-    }
-
-    function getMarketMaxLeverage(uint32 marketId)
+    function getPnl()
         external
         view
-        returns (uint32)
+        returns (uint256 _pnlValue, bool _pnlIsPos)
     {
-        require(marketId < marketCount, "Invalid Pool Id");
-        return marketInfo[marketId].maxLeverage;
-    }
-
-    function getTotalUnrealizedPnl()
-        public
-        view
-        returns (bool isPositive, uint256 value)
-    {
-        uint256 totalProfit = 0;
-        uint256 totalLoss = 0;
-        for (uint32 i = 0; i < marketCount; i = i + 1) {
-            (Sign sign, uint256 pnl, ) = getUnrealizedPnl(i);
-            if (sign == Sign.POS) {
-                totalProfit = totalProfit.add(pnl);
-            } else {
-                totalLoss = totalLoss.add(pnl);
-            }
-            /*
-            if (accFundingFee[i].feeSign == Sign.POS) {
-                totalProfit = totalProfit.add(
-                    accFundingFee[i].unrealizedFundingFee
-                );
-            } else {
-                totalLoss = totalLoss.add(accFundingFee[i].unrealizedFundingFee);
-            }*/
-        }
-        if (totalProfit > totalLoss) {
-            isPositive = true;
-            value = totalProfit.sub(totalLoss);
-        } else {
-            isPositive = false;
-            value = totalLoss.sub(totalProfit);
+        address priceOracle = factoryContract.getPriceOracle();
+        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
+        (_pnlValue, _pnlIsPos) = (netPaidValue.value, netPaidValue.isPos);
+        for (uint32 marketId = 0; marketId < marketCount; marketId++) {
+            MarketStatus storage marketStatus = marketStatus[marketId];
+            bool netIsLong = marketStatus.longQty >= marketStatus.shortQty;
+            uint256 netPositionQty = netIsLong
+                ? marketStatus.longQty - marketStatus.shortQty
+                : marketStatus.shortQty - marketStatus.longQty;
+            uint256 price = prices[marketId];
+            MarketInfo storage marketInfo = marketInfos[marketId];
+            uint256 notionalValue = MathUtil.mul(
+                netPositionQty,
+                price,
+                marketInfo.decimals,
+                PRICE_DECIMAL,
+                VALUE_DECIMAL
+            );
+            (_pnlValue, _pnlIsPos) = MathUtil.add(
+                _pnlValue,
+                notionalValue,
+                _pnlIsPos,
+                netIsLong
+            );
         }
     }
 
-    function applyUnrealizedPnl(uint32 marketId)
-        public
-        returns (Sign, uint256)
-    {
-        require(marketId < marketCount, "Invalid Pool Id");
-        (Sign isPositive, uint256 pnl, uint256 currentPrice) = getUnrealizedPnl(
-            marketId
-        );
-        marketStatus[marketId].lastPrice = currentPrice;
-        marketStatus[marketId].lastBlockNumber = block.number;
-        marketStatus[marketId].pnlSign = isPositive;
-        marketStatus[marketId].unrealizedPnl = pnl;
-        return (
-            marketStatus[marketId].pnlSign,
-            marketStatus[marketId].unrealizedPnl
-        );
+    function liquidate(
+        address user,
+        uint32 marketId,
+        uint256 qty
+    ) external {
+        // TODO maximum 50% at once if exceeds certain qty
     }
 
-    function getUnrealizedPnl(uint32 marketId)
+    function addMarket() external {}
+
+    function getLeverageFactors(address user)
         public
         view
         returns (
-            Sign isPositive,
-            uint256 pnl,
-            uint256 currentPrice
+            uint256 _notionalValue,
+            uint256 _IM,
+            ValueWithSign memory _willReceiveValue
         )
     {
-        require(marketId < marketCount, "Invalid Pool Id");
+        UserInfo storage userInfo = userInfos[user];
+        uint32 positionCount = userInfo.positionCount;
 
-        currentPrice = IPriceOracle(factoryContract.getPriceOracle()).getPrice(
-            marketId
-        );
+        address priceOracle = factoryContract.getPriceOracle();
+        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
 
-        if (marketStatus[marketId].lastBlockNumber == block.number) {
-            return (
-                marketStatus[marketId].pnlSign,
-                marketStatus[marketId].unrealizedPnl,
-                currentPrice
-            );
-        }
-        isPositive = marketStatus[marketId].pnlSign;
-
-        if (marketStatus[marketId].lastPrice < currentPrice) {
-            uint256 longPositionsProfit = marketStatus[marketId]
-                .totalLongPositionFactor
-                .mul(currentPrice.sub(marketStatus[marketId].lastPrice));
-            uint256 shortPositionsLoss = marketStatus[marketId]
-                .totalShortPositionFactor
-                .mul(currentPrice.sub(marketStatus[marketId].lastPrice));
-
-            if (longPositionsProfit > shortPositionsLoss) {
-                uint256 profit = longPositionsProfit.sub(shortPositionsLoss);
-                if (marketStatus[marketId].pnlSign == Sign.POS) {
-                    pnl = marketStatus[marketId].unrealizedPnl.add(profit);
-                } else {
-                    if (marketStatus[marketId].unrealizedPnl < profit) {
-                        isPositive = Sign.POS;
-                        pnl = profit.sub(marketStatus[marketId].unrealizedPnl);
-                    } else {
-                        pnl = marketStatus[marketId].unrealizedPnl.sub(profit);
-                    }
-                }
-            } else {
-                uint256 loss = shortPositionsLoss.sub(longPositionsProfit);
-                if (marketStatus[marketId].pnlSign == Sign.NEG) {
-                    pnl = marketStatus[marketId].unrealizedPnl.add(loss);
-                } else {
-                    if (marketStatus[marketId].unrealizedPnl < loss) {
-                        isPositive = Sign.NEG;
-                        pnl = loss.sub(marketStatus[marketId].unrealizedPnl);
-                    } else {
-                        pnl = marketStatus[marketId].unrealizedPnl.sub(loss);
-                    }
-                }
-            }
-        } else {
-            uint256 longPositionsLoss = marketStatus[marketId]
-                .totalLongPositionFactor
-                .mul(marketStatus[marketId].lastPrice.sub(currentPrice));
-            uint256 shortPositionsProfit = marketStatus[marketId]
-                .totalShortPositionFactor
-                .mul(marketStatus[marketId].lastPrice.sub(currentPrice));
-
-            if (shortPositionsProfit > longPositionsLoss) {
-                uint256 profit = shortPositionsProfit.sub(longPositionsLoss);
-                if (marketStatus[marketId].pnlSign == Sign.POS) {
-                    pnl = marketStatus[marketId].unrealizedPnl.add(profit);
-                } else {
-                    if (marketStatus[marketId].unrealizedPnl < profit) {
-                        isPositive = Sign.POS;
-                        pnl = profit.sub(marketStatus[marketId].unrealizedPnl);
-                    } else {
-                        pnl = marketStatus[marketId].unrealizedPnl.sub(profit);
-                    }
-                }
-            } else {
-                uint256 loss = longPositionsLoss.sub(shortPositionsProfit);
-                if (marketStatus[marketId].pnlSign == Sign.NEG) {
-                    pnl = marketStatus[marketId].unrealizedPnl.add(loss);
-                } else {
-                    if (marketStatus[marketId].unrealizedPnl < loss) {
-                        isPositive = Sign.NEG;
-                        pnl = loss.sub(marketStatus[marketId].unrealizedPnl);
-                    } else {
-                        pnl = marketStatus[marketId].unrealizedPnl.sub(loss);
-                    }
-                }
+        for (uint32 i = 0; i < positionCount; i++) {
+            uint32 marketId = userPositionList[user][i];
+            Position storage position = positions[user][marketId];
+            if (position.isOpened) {
+                uint256 price = prices[marketId];
+                MarketInfo storage marketInfo = marketInfos[marketId];
+                uint256 notionalValue = MathUtil.mul(
+                    position.qty.value,
+                    price,
+                    marketInfo.decimals,
+                    PRICE_DECIMAL,
+                    VALUE_DECIMAL
+                );
+                _notionalValue += notionalValue;
+                // add IM
+                _IM +=
+                    (notionalValue * marketInfo.initialMarginFraction) /
+                    10000;
+                // add will receive value
+                (_willReceiveValue.value, _willReceiveValue.isPos) = MathUtil
+                    .add(
+                        _willReceiveValue.value,
+                        notionalValue,
+                        _willReceiveValue.isPos,
+                        position.isLong
+                    );
             }
         }
     }
 
-    function getOwnedTokensIndex(address user, uint32 marketId)
-        external
-        view
-        returns (uint256[] memory)
-    {
-        return userMarketPositions[user][marketId];
-    }
-
-    function calculatePositionFundingFee(uint256 tokenId)
+    function getLiquidationFactors(address user)
         public
         view
-        returns (Sign sign, uint256 fundingFee)
+        returns (uint256 _MM, ValueWithSign memory _willReceiveValue)
     {
-        require(positions[tokenId].status == Status.OPEN, "Already Closed");
-        (Sign resSign, uint256 resNum) = calculateUnsignedSub(
-            accFundingFee[positions[tokenId].marketId].sign,
-            accFundingFee[positions[tokenId].marketId].accRate,
-            positions[tokenId].initialFundingFeeSign,
-            positions[tokenId].initialAccFundingFee
-        );
-        //TODO: should re-write after applying notional value
-        fundingFee = positions[tokenId].notionalValue.mul(resNum).div(
-            uint256(10)**FUNDING_RATE_DECIMAL
-        );
-        if (positions[tokenId].isLong == true) {
-            if (resSign == Sign.POS) {
-                sign = Sign.NEG;
-            } else {
-                sign = Sign.POS;
-            }
-        } else {
-            if (resSign == Sign.POS) {
-                sign = Sign.POS;
-            } else {
-                sign = Sign.NEG;
+        UserInfo storage userInfo = userInfos[user];
+        uint32 positionCount = userInfo.positionCount;
+
+        address priceOracle = factoryContract.getPriceOracle();
+        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
+
+        for (uint32 i = 0; i < positionCount; i++) {
+            uint32 marketId = userPositionList[user][i];
+            Position storage position = positions[user][marketId];
+            if (position.isOpened) {
+                uint256 price = prices[marketId];
+                MarketInfo storage marketInfo = marketInfos[marketId];
+                uint256 notionalValue = MathUtil.mul(
+                    position.qty.value,
+                    price,
+                    marketInfo.decimals,
+                    PRICE_DECIMAL,
+                    VALUE_DECIMAL
+                );
+                // add MM
+                _MM +=
+                    (notionalValue * marketInfo.maintenanceMarginFraction) /
+                    10000;
+                // add will receive value
+                (_willReceiveValue.value, _willReceiveValue.isPos) = MathUtil
+                    .add(
+                        _willReceiveValue.value,
+                        notionalValue,
+                        _willReceiveValue.isPos,
+                        position.isLong
+                    );
             }
         }
     }
 
-    function applyFundingRate(
-        uint32 marketId,
-        Sign sign,
-        uint256 fundingRate
-    ) external onlyOwner {
-        (Sign resSign, uint256 resNum) = calculateUnsignedAdd(
-            accFundingFee[marketId].sign,
-            accFundingFee[marketId].accRate,
-            sign,
-            fundingRate
-        );
-        accFundingFee[marketId].sign = resSign;
-        accFundingFee[marketId].accRate = resNum;
-        accFundingFee[marketId].lastTimestamp = uint256(block.timestamp);
-        emit ApplyFundingRate(marketId, sign, fundingRate);
-    }
-
-    function applyFundingFeeToPosition(uint256 tokenId)
+    function getCollateralValue(address user)
         public
-        returns (Sign sign, uint256 fee)
+        view
+        returns (uint256 _collateralValue)
     {
-        require(positions[tokenId].status == Status.OPEN, "Already Closed");
-        (
-            Sign fundingFeeSign,
-            uint256 currentFundingFee
-        ) = calculatePositionFundingFee(tokenId);
+        UserInfo storage userInfo = userInfos[user];
+        uint32 collateralCount = userInfo.collateralCount;
 
-        (, positions[tokenId].margin) = calculateUnsignedAdd(
-            Sign.POS,
-            positions[tokenId].margin,
-            fundingFeeSign,
-            currentFundingFee
-        );
-        /*
-        (
-            accFundingFee[positions[tokenId].marketId].feeSign,
-            accFundingFee[positions[tokenId].marketId].unrealizedFundingFee
-        ) = calculateUnsignedSub(
-            accFundingFee[positions[tokenId].marketId].feeSign,
-            accFundingFee[positions[tokenId].marketId].unrealizedFundingFee,
-            fundingFeeSign,
-            currentFundingFee
-        );
-        */
+        address priceOracle = factoryContract.getPriceOracle();
+        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
 
-        positions[tokenId].initialFundingFeeSign = accFundingFee[
-            positions[tokenId].marketId
-        ].sign;
-        positions[tokenId].initialAccFundingFee = accFundingFee[
-            positions[tokenId].marketId
-        ].accRate;
-    }
-
-    function calculateUnsignedAdd(
-        Sign signA,
-        uint256 numA,
-        Sign signB,
-        uint256 numB
-    ) internal pure returns (Sign resSign, uint256 resNum) {
-        if (signA == signB) {
-            return (signA, numA.add(numB));
-        } else {
-            if (numA > numB) {
-                return (signA, numA.sub(numB));
-            } else {
-                return (signB, numB.sub(numA));
+        for (uint32 i = 0; i < collateralCount; i++) {
+            uint32 collateralId = userCollateralList[user][i];
+            Collateral storage collateral = collaterals[user][collateralId];
+            if (collateral.qty > 0) {
+                CollateralInfo storage collateralInfo = collateralInfos[
+                    collateralId
+                ];
+                uint256 value = MathUtil.mul(
+                    collateral.qty,
+                    prices[collateralId],
+                    collateralInfo.decimals,
+                    PRICE_DECIMAL,
+                    VALUE_DECIMAL
+                );
+                _collateralValue += (value * collateralInfo.weight) / 10000;
             }
         }
     }
 
-    function calculateUnsignedSub(
-        Sign signA,
-        uint256 numA,
-        Sign signB,
-        uint256 numB
-    ) internal pure returns (Sign resSign, uint256 resNum) {
-        if (signA != signB) {
-            return (signA, numA.add(numB));
-        } else {
-            if (numA > numB) {
-                return (signA, numA.sub(numB));
-            } else {
-                if (signA == Sign.POS) {
-                    return (Sign.NEG, numB.sub(numA));
-                } else {
-                    return (Sign.POS, numB.sub(numA));
-                }
-            }
-        }
+    function checkMaxLeverage(address user) internal view {
+        (
+            uint256 notionalValue,
+            uint256 IM,
+            ValueWithSign memory willReceiveValue
+        ) = getLeverageFactors(user);
+
+        uint256 collateralValue = getCollateralValue(user);
+
+        checkMaxLeverageRequirement(
+            user,
+            notionalValue,
+            IM,
+            collateralValue,
+            willReceiveValue
+        );
     }
 
-    function _addTokenToUserPositions(
+    function checkMaxLeverageRequirement(
         address user,
-        uint32 marketId,
-        uint256 tokenId
-    ) private {
-        userMarketPositionsIndex[user][tokenId] = userMarketPositions[user][
-            marketId
-        ].length;
-        userMarketPositions[user][marketId].push(tokenId);
-    }
+        uint256 notionalValue,
+        uint256 IM,
+        uint256 collateralValue,
+        ValueWithSign memory willReceiveValue
+    ) internal view {
+        ValueWithSign memory accountValue;
+        ValueWithSign storage paidValue = userInfos[user].paidValue;
+        (accountValue.value, accountValue.isPos) = MathUtil.add(
+            willReceiveValue.value,
+            paidValue.value,
+            willReceiveValue.isPos,
+            paidValue.isPos
+        );
 
-    function _removeTokenFromUserPositions(
-        address user,
-        uint32 marketId,
-        uint256 tokenId
-    ) private {
-        // To prevent a gap in the tokens array, we store the last token in the index of the token to delete, and
-        // then delete the last slot (swap and pop).
+        (accountValue.value, accountValue.isPos) = MathUtil.add(
+            collateralValue,
+            accountValue.value,
+            true,
+            accountValue.isPos
+        );
 
-        uint256 lastTokenIndex = userMarketPositions[user][marketId].length - 1;
-        uint256 tokenIndex = userMarketPositionsIndex[user][tokenId];
-
-        // When the token to delete is the last token, the swap operation is unnecessary. However, since this occurs so
-        // rarely (when the last minted token is burnt) that we still do the swap here to avoid the gas cost of adding
-        // an 'if' statement (like in _removeTokenFromOwnerEnumeration)
-        uint256 lastTokenId = userMarketPositions[user][marketId][
-            lastTokenIndex
-        ];
-
-        userMarketPositions[user][marketId][tokenIndex] = lastTokenId; // Move the last token to the slot of the to-delete token
-        userMarketPositionsIndex[user][lastTokenId] = tokenIndex; // Update the moved token's index
-
-        // This also deletes the contents at the last position of the array
-        delete userMarketPositionsIndex[user][tokenId];
-        userMarketPositions[user][marketId].pop();
-    }
-
-    function _afterTokenTransfer(
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal override {
-        if (from == address(0)) {
-            _addTokenToUserPositions(to, positions[tokenId].marketId, tokenId);
-        } else if (to == address(0)) {
-            _removeTokenFromUserPositions(
-                from,
-                positions[tokenId].marketId,
-                tokenId
-            );
-        } else {
-            _addTokenToUserPositions(to, positions[tokenId].marketId, tokenId);
-            _removeTokenFromUserPositions(
-                from,
-                positions[tokenId].marketId,
-                tokenId
-            );
-        }
+        require(
+            accountValue.isPos &&
+                accountValue.value * MAX_LEVERAGE > notionalValue &&
+                accountValue.value > IM,
+            "Exceeds Max Leverage"
+        );
     }
 }
+
+// TODO
+// fee 수취시 net pnl에 끼치는 영향
+// liquidation
