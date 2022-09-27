@@ -231,10 +231,14 @@ contract PositionManagerTemp is
         IERC20(tokenAddress).transferFrom(lpPool, user, amount);
     }
 
-    function getPnl() external view returns (ValueWithSign memory _pnl) {
+    function getPnl()
+        external
+        view
+        returns (uint256 _pnlValue, bool _pnlIsPos)
+    {
         address priceOracle = factoryContract.getPriceOracle();
         uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
-        (_pnl.value, _pnl.isPos) = (paidValue.value, paidValue.isPos);
+        (_pnlValue, _pnlIsPos) = (paidValue.value, paidValue.isPos);
         for (uint32 marketId = 0; marketId < marketCount; marketId++) {
             MarketStatus storage marketStatus = marketStatus[marketId];
             bool netIsLong = marketStatus.longQty >= marketStatus.shortQty;
@@ -250,10 +254,10 @@ contract PositionManagerTemp is
                 PRICE_DECIMAL,
                 VALUE_DECIMAL
             );
-            (_pnl.value, _pnl.isPos) = MathWithSign.add(
-                _pnl.value,
+            (_pnlValue, _pnlIsPos) = MathWithSign.add(
+                _pnlValue,
                 notionalValue,
-                _pnl.isPos,
+                _pnlIsPos,
                 netIsLong
             );
         }

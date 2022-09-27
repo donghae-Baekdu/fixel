@@ -7,21 +7,6 @@ contract PositionManagerStorage {
         bool isPos;
     }
 
-    enum TradeType {
-        OPEN,
-        CLOSE
-    }
-
-    enum Status {
-        OPEN,
-        CLOSE
-    }
-
-    enum Sign {
-        POS,
-        NEG
-    }
-
     struct UserInfo {
         ValueWithSign paidValue;
         uint32 positionCount;
@@ -78,10 +63,11 @@ contract PositionManagerStorage {
     uint32 marketCount;
     ValueWithSign paidValue;
 
+    mapping(address => UserInfo) public userInfos;
+
     //user -> marketId -> position
     mapping(address => mapping(uint32 => Position)) public positions;
     mapping(address => mapping(uint32 => Collateral)) public collaterals;
-    mapping(address => UserInfo) public userInfos;
     mapping(address => mapping(uint32 => uint32)) public userPositionList;
     mapping(address => mapping(uint32 => uint32)) public userCollateralList;
 

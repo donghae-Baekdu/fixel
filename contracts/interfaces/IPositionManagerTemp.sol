@@ -1,11 +1,6 @@
 pragma solidity ^0.8.9;
 
 interface IPositionManagerTemp {
-    struct ValueWithSign {
-        uint256 value;
-        bool isPos;
-    }
-
     function openPosition(
         address user,
         uint32 marketId,
@@ -42,5 +37,5 @@ interface IPositionManagerTemp {
         view
         returns (uint256 _collateralValue);
 
-    function getPnl() external view returns (ValueWithSign memory _pnl);
+    function getPnl() external view returns (uint256 _pnlValue, bool _pnlIsPos);
 }
