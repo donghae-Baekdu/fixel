@@ -56,12 +56,8 @@ contract PositionManagerStorage {
     uint8 public VALUE_DECIMAL = 18;
     uint8 public MAX_LEVERAGE = 20;
 
-    address USDC_TOKEN_ADDRESS;
-
-    IERC20 USDC;
-
     uint32 marketCount;
-    ValueWithSign paidValue;
+    ValueWithSign netPaidValue;
 
     mapping(address => UserInfo) public userInfos;
 
@@ -74,6 +70,8 @@ contract PositionManagerStorage {
     mapping(uint32 => MarketStatus) public marketStatus;
     mapping(uint32 => MarketInfo) public marketInfos;
     mapping(uint32 => CollateralInfo) public collateralInfos;
+
+    mapping(address => uint8) feeTier; // bp
 
     IFactory factoryContract;
 }

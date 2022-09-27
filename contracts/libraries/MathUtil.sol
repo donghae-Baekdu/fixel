@@ -1,6 +1,6 @@
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
-library MathWithSign {
+library MathUtil {
     using SafeMath for uint8;
     using SafeMath for uint256;
 
@@ -73,6 +73,18 @@ library MathWithSign {
             _c = a.mul(b).div(10**(decimalsSum.sub(cDecimals)));
         } else {
             _c = a.mul(b).mul(10**(cDecimals.sub(decimalsSum)));
+        }
+    }
+
+    function convertDecimals(
+        uint256 a,
+        uint8 fromDecimals,
+        uint8 toDecimals
+    ) external pure returns (uint256 _b) {
+        if (fromDecimals >= toDecimals) {
+            _b = a.div(10**(fromDecimals.sub(toDecimals)));
+        } else {
+            _b = a.mul(10**(toDecimals.sub(fromDecimals)));
         }
     }
 }

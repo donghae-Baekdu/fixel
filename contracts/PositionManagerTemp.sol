@@ -7,7 +7,7 @@ import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {ILpPool} from "./interfaces/ILpPool.sol";
 import {IPositionManagerTemp} from "./interfaces/IPositionManagerTemp.sol";
-import {MathWithSign} from "./libraries/MathWithSign.sol";
+import {MathUtil} from "./libraries/MathUtil.sol";
 import {PositionManagerStorage} from "./PositionManagerStorage.sol";
 import "hardhat/console.sol";
 
@@ -18,9 +18,8 @@ contract PositionManagerTemp is
 {
     using SafeMath for uint256;
 
-    constructor(address factoryContract_, address usdc_) {
+    constructor(address factoryContract_) {
         factoryContract = IFactory(factoryContract_);
-        USDC = IERC20(usdc_);
     }
 
     function openPosition(
@@ -41,51 +40,8 @@ contract PositionManagerTemp is
             userPositionList[user][userInfo.positionCount];
             userInfo.positionCount++;
         }
-        // get price of asset
-        address priceOracle = factoryContract.getPriceOracle();
-        uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
 
-        // open position. input unit is position qty. record notional value in GD value.
-        ValueWithSign storage paidValue = userInfo.paidValue;
-
-        uint256 tradeNotionalValue = MathWithSign.mul(
-            qty,
-            price,
-            marketInfos[marketId].decimals,
-            PRICE_DECIMAL,
-            VALUE_DECIMAL
-        );
-
-        (paidValue.value, paidValue.isPos) = MathWithSign.add(
-            paidValue.value,
-            tradeNotionalValue,
-            paidValue.isPos,
-            !isLong
-        );
-
-        position.entryPrice =
-            (position.entryPrice * position.qty.value + price * qty) /
-            (position.qty.value + qty);
-        position.qty.value += qty;
-
-        checkMaxLeverage(user);
-
-        (paidValue.value, paidValue.isPos) = MathWithSign.add(
-            paidValue.value,
-            tradeNotionalValue,
-            paidValue.isPos,
-            !isLong
-        );
-
-        // update market status -> increase market's paid value
-        MarketStatus storage market = marketStatus[marketId];
-        if (isLong) {
-            market.longQty += qty;
-        } else {
-            market.shortQty += qty;
-        }
-
-        // TODO take fee from open notional value
+        updateStatusAfterTrade(user, position, marketId, qty, false);
     }
 
     function closePosition(
@@ -102,11 +58,23 @@ contract PositionManagerTemp is
 
         require(position.qty.value > qty, "Not enough amount to close");
 
-        // update paid value
+        updateStatusAfterTrade(user, position, marketId, qty, false);
+    }
+
+    function updateStatusAfterTrade(
+        address user,
+        Position storage position,
+        uint32 marketId,
+        uint256 qty,
+        bool isOpen
+    ) internal {
+        address priceOracle = factoryContract.getPriceOracle();
+        uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
         UserInfo storage userInfo = userInfos[user];
+
         ValueWithSign storage paidValue = userInfo.paidValue;
 
-        uint256 tradeNotionalValue = MathWithSign.mul(
+        uint256 paidValueDelta = MathUtil.mul(
             qty,
             price,
             marketInfos[marketId].decimals,
@@ -114,33 +82,56 @@ contract PositionManagerTemp is
             VALUE_DECIMAL
         );
 
-        (paidValue.value, paidValue.isPos) = MathWithSign.add(
+        // take fee from open notional value
+        uint256 fee = (paidValueDelta * feeTier[user]) / 10000;
+
+        bool paidValueDeltaIsPos = isOpen ? !position.isLong : position.isLong;
+
+        paidValueDelta = paidValueDeltaIsPos
+            ? paidValueDelta - fee
+            : paidValueDelta + fee;
+
+        (paidValue.value, paidValue.isPos) = MathUtil.add(
             paidValue.value,
-            tradeNotionalValue,
+            paidValueDelta,
             paidValue.isPos,
-            position.isLong
+            paidValueDeltaIsPos
         );
 
         // update qty
-        position.qty.value -= qty;
+        if (isOpen) {
+            position.qty.value += qty;
+            position.entryPrice =
+                (position.entryPrice * position.qty.value + price * qty) /
+                (position.qty.value + qty);
 
-        (paidValue.value, paidValue.isPos) = MathWithSign.add(
-            paidValue.value,
-            tradeNotionalValue,
-            paidValue.isPos,
-            position.isLong
-        );
+            checkMaxLeverage(user);
 
-        // update market status
-        MarketStatus storage market = marketStatus[marketId];
+            MarketStatus storage market = marketStatus[marketId];
 
-        if (position.isLong) {
-            market.longQty -= qty;
+            if (position.isLong) {
+                market.longQty += qty;
+            } else {
+                market.shortQty += qty;
+            }
         } else {
-            market.shortQty -= qty;
+            position.qty.value -= qty;
+
+            MarketStatus storage market = marketStatus[marketId];
+
+            if (position.isLong) {
+                market.longQty -= qty;
+            } else {
+                market.shortQty -= qty;
+            }
         }
 
-        // TODO take fee from open notional value
+        (netPaidValue.value, netPaidValue.isPos) = MathUtil.add(
+            netPaidValue.value,
+            paidValueDelta,
+            netPaidValue.isPos,
+            paidValueDeltaIsPos
+        );
     }
 
     function addCollateral(
@@ -155,9 +146,13 @@ contract PositionManagerTemp is
 
         if (collateralId == 0) {
             ValueWithSign storage paidValue = userInfos[user].paidValue;
-            (paidValue.value, paidValue.isPos) = MathWithSign.add(
+            (paidValue.value, paidValue.isPos) = MathUtil.add(
                 paidValue.value,
-                amount,
+                MathUtil.convertDecimals(
+                    amount,
+                    collateralInfos[0].decimals,
+                    VALUE_DECIMAL
+                ),
                 paidValue.isPos,
                 true
             );
@@ -190,21 +185,26 @@ contract PositionManagerTemp is
 
         if (collateralId == 0) {
             ValueWithSign storage paidValue = userInfos[user].paidValue;
-            (uint256 usdQty, bool usdIsPos) = MathWithSign.add(
+            (uint256 usdQty, bool usdIsPos) = MathUtil.add(
                 willReceiveValue.value,
                 paidValue.value,
                 willReceiveValue.isPos,
                 paidValue.isPos
             );
 
+            uint256 amountToValueUnit = MathUtil.convertDecimals(
+                amount,
+                collateralInfos[0].decimals,
+                VALUE_DECIMAL
+            );
             require(
-                usdIsPos == true && usdQty >= amount,
+                usdIsPos == true && usdQty >= amountToValueUnit,
                 "Not enough usd to withdraw"
             );
 
-            (paidValue.value, paidValue.isPos) = MathWithSign.sub(
+            (paidValue.value, paidValue.isPos) = MathUtil.sub(
                 paidValue.value,
-                amount,
+                amountToValueUnit,
                 paidValue.isPos,
                 true
             );
@@ -226,9 +226,13 @@ contract PositionManagerTemp is
         );
 
         // transfer token
-        address tokenAddress = collateralInfos[collateralId].tokenAddress;
-        address lpPool = factoryContract.getLpPool();
-        IERC20(tokenAddress).transferFrom(lpPool, user, amount);
+        if (collateralId == 0) {
+            // TODO mint stable coin
+        } else {
+            address tokenAddress = collateralInfos[collateralId].tokenAddress;
+            address lpPool = factoryContract.getLpPool();
+            IERC20(tokenAddress).transferFrom(lpPool, user, amount);
+        }
     }
 
     function getPnl()
@@ -238,7 +242,7 @@ contract PositionManagerTemp is
     {
         address priceOracle = factoryContract.getPriceOracle();
         uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
-        (_pnlValue, _pnlIsPos) = (paidValue.value, paidValue.isPos);
+        (_pnlValue, _pnlIsPos) = (netPaidValue.value, netPaidValue.isPos);
         for (uint32 marketId = 0; marketId < marketCount; marketId++) {
             MarketStatus storage marketStatus = marketStatus[marketId];
             bool netIsLong = marketStatus.longQty >= marketStatus.shortQty;
@@ -247,14 +251,14 @@ contract PositionManagerTemp is
                 : marketStatus.shortQty - marketStatus.longQty;
             uint256 price = prices[marketId];
             MarketInfo storage marketInfo = marketInfos[marketId];
-            uint256 notionalValue = MathWithSign.mul(
+            uint256 notionalValue = MathUtil.mul(
                 netPositionQty,
                 price,
                 marketInfo.decimals,
                 PRICE_DECIMAL,
                 VALUE_DECIMAL
             );
-            (_pnlValue, _pnlIsPos) = MathWithSign.add(
+            (_pnlValue, _pnlIsPos) = MathUtil.add(
                 _pnlValue,
                 notionalValue,
                 _pnlIsPos,
@@ -301,7 +305,7 @@ contract PositionManagerTemp is
             if (position.isOpened) {
                 uint256 price = prices[marketId];
                 MarketInfo storage marketInfo = marketInfos[marketId];
-                uint256 notionalValue = MathWithSign.mul(
+                uint256 notionalValue = MathUtil.mul(
                     position.qty.value,
                     price,
                     marketInfo.decimals,
@@ -314,15 +318,13 @@ contract PositionManagerTemp is
                     (notionalValue * marketInfo.initialMarginFraction) /
                     10000;
                 // add will receive value
-                (
-                    _willReceiveValue.value,
-                    _willReceiveValue.isPos
-                ) = MathWithSign.add(
-                    _willReceiveValue.value,
-                    notionalValue,
-                    _willReceiveValue.isPos,
-                    position.isLong
-                );
+                (_willReceiveValue.value, _willReceiveValue.isPos) = MathUtil
+                    .add(
+                        _willReceiveValue.value,
+                        notionalValue,
+                        _willReceiveValue.isPos,
+                        position.isLong
+                    );
             }
         }
     }
@@ -344,7 +346,7 @@ contract PositionManagerTemp is
             if (position.isOpened) {
                 uint256 price = prices[marketId];
                 MarketInfo storage marketInfo = marketInfos[marketId];
-                uint256 notionalValue = MathWithSign.mul(
+                uint256 notionalValue = MathUtil.mul(
                     position.qty.value,
                     price,
                     marketInfo.decimals,
@@ -356,15 +358,13 @@ contract PositionManagerTemp is
                     (notionalValue * marketInfo.maintenanceMarginFraction) /
                     10000;
                 // add will receive value
-                (
-                    _willReceiveValue.value,
-                    _willReceiveValue.isPos
-                ) = MathWithSign.add(
-                    _willReceiveValue.value,
-                    notionalValue,
-                    _willReceiveValue.isPos,
-                    position.isLong
-                );
+                (_willReceiveValue.value, _willReceiveValue.isPos) = MathUtil
+                    .add(
+                        _willReceiveValue.value,
+                        notionalValue,
+                        _willReceiveValue.isPos,
+                        position.isLong
+                    );
             }
         }
     }
@@ -387,7 +387,7 @@ contract PositionManagerTemp is
                 CollateralInfo storage collateralInfo = collateralInfos[
                     collateralId
                 ];
-                uint256 value = MathWithSign.mul(
+                uint256 value = MathUtil.mul(
                     collateral.qty,
                     prices[collateralId],
                     collateralInfo.decimals,
@@ -426,14 +426,14 @@ contract PositionManagerTemp is
     ) internal view {
         ValueWithSign memory accountValue;
         ValueWithSign storage paidValue = userInfos[user].paidValue;
-        (accountValue.value, accountValue.isPos) = MathWithSign.add(
+        (accountValue.value, accountValue.isPos) = MathUtil.add(
             willReceiveValue.value,
             paidValue.value,
             willReceiveValue.isPos,
             paidValue.isPos
         );
 
-        (accountValue.value, accountValue.isPos) = MathWithSign.add(
+        (accountValue.value, accountValue.isPos) = MathUtil.add(
             collateralValue,
             accountValue.value,
             true,
