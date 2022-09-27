@@ -173,22 +173,44 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
     }
 
     function addCollateral(
-        uint256 collateralId,
-        uint256 liquidity,
-        uint256 notionalValue // value as usdc
+        address user,
+        uint32 collateralId,
+        uint256 amount
     ) external {
-        // TODO transfer token
-        // TODO add collateral
+        // transfer token
+        address tokenAddress = collateralInfos[collateralId].tokenAddress;
+        address lpPool = factoryContract.getLpPool();
+        IERC20(tokenAddress).transferFrom(user, lpPool, amount);
+
+        Collateral storage collateral = collaterals[user][collateralId];
+        // add to collateral list
+        if (!collateral.beenDeposited) {
+            UserInfo storage userInfo = userInfos[user];
+            userCollateralList[user][userInfo.collateralCount] = collateralId;
+            userInfo.collateralCount++;
+            collateral.beenDeposited = true;
+        }
+        // add collateral
+        collateral.qty += amount;
     }
 
     function removeCollateral(
-        uint256 collateralId,
-        uint256 margin,
-        uint256 notionalValue
+        address user,
+        uint32 collateralId,
+        uint256 amount
     ) external {
+        Collateral storage collateral = collaterals[user][collateralId];
+        require(collateral.qty >= amount, "Not enough token to withdraw");
+
+        // reduce collateral
+        collateral.qty -= amount;
+        // check IM
+        checkMaxLeverage(user);
+
         // TODO transfer token
-        // TODO reduce collateral
-        // TODO check IM
+        address tokenAddress = collateralInfos[collateralId].tokenAddress;
+        address lpPool = factoryContract.getLpPool();
+        IERC20(tokenAddress).transferFrom(lpPool, user, amount);
     }
 
     function getUnrealizedProfit() external view {
@@ -209,13 +231,12 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         // TODO
     }
 
-    function getEssentialFactors(address user)
+    function getLeverageFactors(address user)
         public
         view
         returns (
             uint256 _notionalValue,
             uint256 _IM,
-            uint256 _MM,
             ValueWithSign memory _willReceiveValue
         )
     {
@@ -242,6 +263,43 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
                 _IM +=
                     (notionalValue * marketInfo.initialMarginFraction) /
                     10000;
+                // add will receive value
+                (
+                    _willReceiveValue.value,
+                    _willReceiveValue.isPos
+                ) = MathWithSign.add(
+                    _willReceiveValue.value,
+                    notionalValue,
+                    _willReceiveValue.isPos,
+                    position.isLong
+                );
+            }
+        }
+    }
+
+    function getLiquidationFactors(address user)
+        public
+        view
+        returns (uint256 _MM, ValueWithSign memory _willReceiveValue)
+    {
+        UserInfo storage userInfo = userInfos[user];
+        uint32 positionCount = userInfo.positionCount;
+
+        address priceOracle = factoryContract.getPriceOracle();
+
+        for (uint32 i = 0; i < positionCount; i++) {
+            uint32 marketId = userPositionList[user][i];
+            Position storage position = positions[user][marketId];
+            if (position.isOpened) {
+                uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
+                MarketInfo storage marketInfo = marketInfos[marketId];
+                uint256 notionalValue = MathWithSign.mul(
+                    position.qty.value,
+                    price,
+                    marketInfo.decimals,
+                    PRICE_DECIMAL,
+                    VALUE_DECIMAL
+                );
                 // add MM
                 _MM +=
                     (notionalValue * marketInfo.maintenanceMarginFraction) /
@@ -297,9 +355,8 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         (
             uint256 notionalValue,
             uint256 IM,
-            uint256 MM,
             ValueWithSign memory willReceiveValue
-        ) = getEssentialFactors(user);
+        ) = getLeverageFactors(user);
 
         uint256 collateralValue = getCollateralValue(user);
 

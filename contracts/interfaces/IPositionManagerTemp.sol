@@ -43,7 +43,7 @@ interface IPositionManagerTemp {
         address user;
         uint256 qty;
         uint32 collateralId;
-        bool beenOpened;
+        bool beenDeposited;
     }
 
     struct MarketStatus {
@@ -60,8 +60,8 @@ interface IPositionManagerTemp {
     }
 
     struct CollateralInfo {
+        address tokenAddress;
         uint32 collateralId;
-        uint32 underlyingAssetId;
         uint32 weight;
         uint8 decimals;
     }
@@ -111,15 +111,15 @@ interface IPositionManagerTemp {
     ) external;
 
     function addCollateral(
-        uint256 tokenId,
-        uint256 liquidity,
-        uint256 notionalValue // value as usdc
+        address user,
+        uint32 collateralId,
+        uint256 amount
     ) external;
 
     function removeCollateral(
-        uint256 tokenId,
-        uint256 margin,
-        uint256 notionalValue
+        address user,
+        uint32 collateralId,
+        uint256 amount
     ) external;
 
     function liquidate(uint32 marketId, uint256 tokenId) external;
