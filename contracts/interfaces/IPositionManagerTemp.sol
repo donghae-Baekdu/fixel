@@ -22,7 +22,6 @@ interface IPositionManagerTemp {
     }
 
     struct UserInfo {
-        uint256 collateral;
         ValueWithSign paidValue;
         uint32 positionCount;
         uint32 collateralCount;
@@ -47,7 +46,6 @@ interface IPositionManagerTemp {
     }
 
     struct MarketStatus {
-        ValueWithSign paidValue;
         uint256 longQty;
         uint256 shortQty;
     }
@@ -122,10 +120,16 @@ interface IPositionManagerTemp {
         uint256 amount
     ) external;
 
-    function liquidate(uint32 marketId, uint256 tokenId) external;
+    function liquidate(
+        address user,
+        uint32 marketId,
+        uint256 qty
+    ) external;
 
     function getCollateralValue(address user)
         external
         view
         returns (uint256 _collateralValue);
+
+    function getPnl() external view returns (ValueWithSign memory _pnl);
 }
