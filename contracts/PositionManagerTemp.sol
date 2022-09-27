@@ -8,40 +8,15 @@ import {IFactory} from "./interfaces/IFactory.sol";
 import {ILpPool} from "./interfaces/ILpPool.sol";
 import {IPositionManagerTemp} from "./interfaces/IPositionManagerTemp.sol";
 import {MathWithSign} from "./libraries/MathWithSign.sol";
+import {PositionManagerStorage} from "./PositionManagerStorage.sol";
 import "hardhat/console.sol";
 
-contract PositionManagerTemp is Ownable, IPositionManagerTemp {
+contract PositionManagerTemp is
+    Ownable,
+    IPositionManagerTemp,
+    PositionManagerStorage
+{
     using SafeMath for uint256;
-
-    uint8 public LEVERAGE_DECIMAL = 2;
-    uint8 public FUNDING_RATE_DECIMAL = 4;
-    uint8 public PRICE_DECIMAL = 9; // QTY_DECIMAL은 market info에
-    uint8 public VALUE_DECIMAL = 18;
-
-    uint8 public MAX_LEVERAGE = 20;
-
-    address USDC_TOKEN_ADDRESS;
-
-    IERC20 USDC;
-
-    uint32 marketCount;
-    ValueWithSign paidValue;
-
-    mapping(uint32 => ValueWithSign) deltaFLPs;
-    mapping(uint32 => ValueWithSign) notionalValueSum;
-
-    //user -> marketId -> position
-    mapping(address => mapping(uint32 => Position)) public positions;
-    mapping(address => mapping(uint32 => Collateral)) public collaterals;
-    mapping(address => UserInfo) public userInfos;
-    mapping(address => mapping(uint32 => uint32)) public userPositionList;
-    mapping(address => mapping(uint32 => uint32)) public userCollateralList;
-
-    mapping(uint32 => MarketStatus) public marketStatus;
-    mapping(uint32 => MarketInfo) public marketInfos;
-    mapping(uint32 => CollateralInfo) public collateralInfos;
-
-    IFactory factoryContract;
 
     constructor(address factoryContract_, address usdc_) {
         factoryContract = IFactory(factoryContract_);
@@ -296,8 +271,10 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         uint32 marketId,
         uint256 qty
     ) external {
-        // TODO
+        // TODO maximum 50% at once if exceeds certain qty
     }
+
+    function addMarket() external {}
 
     function getLeverageFactors(address user)
         public
