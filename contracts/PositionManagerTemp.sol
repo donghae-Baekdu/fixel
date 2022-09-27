@@ -467,3 +467,6 @@ contract PositionManagerTemp is Ownable, IPositionManagerTemp {
         );
     }
 }
+
+// TODO
+// fee 수취시 net pnl에 끼치는 영향
