@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
-// Import this file to use console.log
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "hardhat/console.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract PriceOracle is Ownable {
     mapping(uint80 => uint256) public prices;

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
-import "./interfaces/ILpPool.sol";
-import "./interfaces/IPositionManager.sol";
-import "./interfaces/IPriceOracle.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "./interfaces/IFactory.sol";
+import {IAdmin} from "../interfaces/IAdmin.sol";
+import {ILpPool} from "../interfaces/ILpPool.sol";
+import {IPositionManager} from "../interfaces/IPositionManager.sol";
+import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 // change name into factory
-contract Factory is Ownable, IFactory {
+contract Admin is Ownable, IAdmin {
     uint80 public constant feeTierDenom = 10000;
     uint80 defaultExchangeFeeTier; // bp
     uint80 defaultLpFeeTier; // bp

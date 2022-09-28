@@ -1,5 +1,4 @@
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IFactory} from "./interfaces/IFactory.sol";
+import {IAdmin} from "../../interfaces/IAdmin.sol";
 
 contract PositionManagerStorage {
     struct ValueWithSign {
@@ -73,5 +72,5 @@ contract PositionManagerStorage {
 
     mapping(address => uint8) feeTier; // bp
 
-    IFactory factoryContract;
+    IAdmin adminContract;
 }

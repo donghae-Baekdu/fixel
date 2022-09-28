@@ -1,12 +1,11 @@
 pragma solidity ^0.8.9;
 
-import "./PositionManager.sol";
+import "../position-manager/PositionManager.sol";
 import "./LpToken.sol";
-import "./Factory.sol";
-import "./interfaces/IFactory.sol";
-import "./interfaces/ILpPool.sol";
-import "./interfaces/IPositionManager.sol";
-import "./USDC.sol";
+import "../../interfaces/IAdmin.sol";
+import "../../interfaces/ILpPool.sol";
+import "../../interfaces/IPositionManager.sol";
+import "../../USDC.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -19,7 +18,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
     using SafeMath for uint80;
     using SafeERC20 for IERC20;
 
-    address factory;
+    address admin;
 
     address public override underlyingToken;
     uint8 public UNDERLYING_TOKEN_DECIMAL;
@@ -34,15 +33,15 @@ contract LpPool is LpToken, ILpPool, Ownable {
     uint256 public override collateralLocked;
     mapping(address => Position) positions;
 
-    constructor(address _underlyingToken, address _factory) public {
+    constructor(address _underlyingToken, address _admin) public {
         underlyingToken = _underlyingToken;
         UNDERLYING_TOKEN_DECIMAL = USDC(underlyingToken).decimals();
-        factory = _factory;
+        admin = _admin;
     }
 
     modifier onlyExchanger() {
         require(
-            msg.sender == IFactory(factory).getPositionManager(),
+            msg.sender == IAdmin(admin).getPositionManager(),
             "You are not Exchanger of this pool"
         );
         _;
@@ -66,7 +65,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
         if (isExchangerCall) {
             require(
-                msg.sender == IFactory(factory).getPositionManager(),
+                msg.sender == IAdmin(admin).getPositionManager(),
                 "Not allowed to add liquidity as a trader"
             );
 
@@ -186,7 +185,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
         if (isExchangerCall) {
             require(
-                msg.sender == IFactory(factory).getPositionManager(),
+                msg.sender == IAdmin(admin).getPositionManager(),
                 "Not allowed to remove liquidity as a trader"
             );
 
@@ -265,7 +264,7 @@ contract LpPool is LpToken, ILpPool, Ownable {
 
     function getPotentialSupply() public view returns (uint256 _qty) {
         // potential supply: supply + unrealized pnl from position manager
-        address positionManager = IFactory(factory).getPositionManager();
+        address positionManager = IAdmin(admin).getPositionManager();
         (bool isPositive, uint256 potentialSupply) = IPositionManager(
             positionManager
         ).getTotalUnrealizedPnl();

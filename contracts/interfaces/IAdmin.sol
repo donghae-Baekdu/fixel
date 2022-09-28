@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
-interface IFactory {
+interface IAdmin {
     event SetLpPool(address poolAddress);
 
     event SetPositionManager(address positionManagerAddress);

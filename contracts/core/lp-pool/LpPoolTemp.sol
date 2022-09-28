@@ -3,19 +3,18 @@ pragma solidity ^0.8.9;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
-import {IFactory} from "./interfaces/IFactory.sol";
-import {ILpPool} from "./interfaces/ILpPool.sol";
-import {IPositionManager} from "./interfaces/IPositionManager.sol";
-import {MathUtil} from "./libraries/MathUtil.sol";
-import {PositionManagerStorage} from "./PositionManagerStorage.sol";
+import {IPriceOracle} from "../../interfaces/IPriceOracle.sol";
+import {IAdmin} from "../../interfaces/IAdmin.sol";
+import {ILpPoolTemp} from "../../interfaces/ILpPoolTemp.sol";
+import {MathUtil} from "../../libraries/MathUtil.sol";
+import {LpPoolStorage} from "./LpPoolStorage.sol";
 import "hardhat/console.sol";
 
-contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
+contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage {
     using SafeMath for uint256;
 
-    constructor(address factoryContract_) {
-        factoryContract = IFactory(factoryContract_);
+    constructor(address adminContract_) {
+        adminContract = IAdmin(adminContract_);
     }
 
     function openPosition(
@@ -47,7 +46,7 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
     ) external {
         require(user == msg.sender, "No authority to order");
         // get price of asset
-        address priceOracle = factoryContract.getPriceOracle();
+        address priceOracle = adminContract.getPriceOracle();
         uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
 
         Position storage position = positions[user][marketId];
@@ -64,7 +63,7 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
         uint256 qty,
         bool isOpen
     ) internal {
-        address priceOracle = factoryContract.getPriceOracle();
+        address priceOracle = adminContract.getPriceOracle();
         uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
         UserInfo storage userInfo = userInfos[user];
 
@@ -137,7 +136,7 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
     ) external {
         // transfer token
         address tokenAddress = collateralInfos[collateralId].tokenAddress;
-        address lpPool = factoryContract.getLpPool();
+        address lpPool = adminContract.getLpPool();
         IERC20(tokenAddress).transferFrom(user, lpPool, amount);
 
         if (collateralId == 0) {
@@ -226,7 +225,7 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
             // TODO mint stable coin
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
-            address lpPool = factoryContract.getLpPool();
+            address lpPool = adminContract.getLpPool();
             IERC20(tokenAddress).transferFrom(lpPool, user, amount);
         }
     }
@@ -236,7 +235,7 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
         view
         returns (uint256 _pnlValue, bool _pnlIsPos)
     {
-        address priceOracle = factoryContract.getPriceOracle();
+        address priceOracle = adminContract.getPriceOracle();
         uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
         (_pnlValue, _pnlIsPos) = (netPaidValue.value, netPaidValue.isPos);
         for (uint32 marketId = 0; marketId < marketCount; marketId++) {
@@ -285,7 +284,7 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
         UserInfo storage userInfo = userInfos[user];
         uint32 positionCount = userInfo.positionCount;
 
-        address priceOracle = factoryContract.getPriceOracle();
+        address priceOracle = adminContract.getPriceOracle();
         uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
 
         for (uint32 i = 0; i < positionCount; i++) {
@@ -326,7 +325,7 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
         UserInfo storage userInfo = userInfos[user];
         uint32 positionCount = userInfo.positionCount;
 
-        address priceOracle = factoryContract.getPriceOracle();
+        address priceOracle = adminContract.getPriceOracle();
         uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
 
         for (uint32 i = 0; i < positionCount; i++) {
@@ -366,7 +365,7 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
         UserInfo storage userInfo = userInfos[user];
         uint32 collateralCount = userInfo.collateralCount;
 
-        address priceOracle = factoryContract.getPriceOracle();
+        address priceOracle = adminContract.getPriceOracle();
         uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
 
         for (uint32 i = 0; i < collateralCount; i++) {
@@ -437,7 +436,3 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
         );
     }
 }
-
-// TODO
-// fee 수취시 net pnl에 끼치는 영향
-// liquidation
