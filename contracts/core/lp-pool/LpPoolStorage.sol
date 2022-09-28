@@ -60,10 +60,10 @@ contract LpPoolStorage {
 
     mapping(address => UserInfo) public userInfos;
 
-    //user -> marketId -> position
-    mapping(address => mapping(uint32 => Position)) public positions;
+    mapping(address => Position) public positions;
+
+    //user -> collateralId -> position
     mapping(address => mapping(uint32 => Collateral)) public collaterals;
-    mapping(address => mapping(uint32 => uint32)) public userPositionList;
     mapping(address => mapping(uint32 => uint32)) public userCollateralList;
 
     mapping(uint32 => MarketStatus) public marketStatus;

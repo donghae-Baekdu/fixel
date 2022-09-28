@@ -7,16 +7,22 @@ import {IPositionManager} from "../../interfaces/IPositionManager.sol";
 import {MathUtil} from "../../libraries/MathUtil.sol";
 
 import {PositionManagerStorage} from "./PositionManagerStorage.sol";
+import {CommonStorage} from "../common/CommonStorage.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "hardhat/console.sol";
 
-contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
+contract PositionManager is
+    Ownable,
+    IPositionManager,
+    PositionManagerStorage,
+    CommonStorage
+{
     using SafeMath for uint256;
 
-    constructor(address adminContract_) {
+    constructor(address adminContract_) CommonStorage(adminContract_, 10) {
         adminContract = IAdmin(adminContract_);
     }
 
@@ -39,7 +45,7 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
             userInfo.positionCount++;
         }
 
-        updateStatusAfterTrade(user, position, marketId, qty, false);
+        updateStatusAfterTrade(user, position, marketId, qty, true);
     }
 
     function closePosition(
@@ -48,9 +54,6 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
         uint256 qty
     ) external {
         require(user == msg.sender, "No authority to order");
-        // get price of asset
-        address priceOracle = adminContract.getPriceOracle();
-        uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
 
         Position storage position = positions[user][marketId];
 
@@ -81,7 +84,7 @@ contract PositionManager is Ownable, IPositionManager, PositionManagerStorage {
         );
 
         // take fee from open notional value
-        uint256 fee = (paidValueDelta * feeTier[user]) / 10000;
+        uint256 fee = (paidValueDelta * getFeeTier(user)) / 10000;
 
         bool paidValueDeltaIsPos = isOpen ? !position.isLong : position.isLong;
 

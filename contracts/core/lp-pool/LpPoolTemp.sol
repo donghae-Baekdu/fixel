@@ -8,35 +8,22 @@ import {IAdmin} from "../../interfaces/IAdmin.sol";
 import {ILpPoolTemp} from "../../interfaces/ILpPoolTemp.sol";
 import {MathUtil} from "../../libraries/MathUtil.sol";
 import {LpPoolStorage} from "./LpPoolStorage.sol";
+import {CommonStorage} from "../common/CommonStorage.sol";
 import "hardhat/console.sol";
 
-contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage {
+contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage, CommonStorage {
     using SafeMath for uint256;
 
-    constructor(address adminContract_) {
+    constructor(address adminContract_) CommonStorage(adminContract_, 25) {
         adminContract = IAdmin(adminContract_);
     }
 
     function openPosition(
         address user,
-        uint32 marketId,
         uint256 qty,
         bool isLong
     ) external {
         require(user == msg.sender, "No authority to order");
-        // side check
-        Position storage position = positions[user][marketId];
-        UserInfo storage userInfo = userInfos[user];
-        if (position.beenOpened) {
-            require(position.isLong == isLong, "Not opening the position");
-        } else {
-            position.beenOpened = true;
-            // push position
-            userPositionList[user][userInfo.positionCount];
-            userInfo.positionCount++;
-        }
-
-        updateStatusAfterTrade(user, position, marketId, qty, false);
     }
 
     function closePosition(
