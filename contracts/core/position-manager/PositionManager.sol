@@ -22,7 +22,7 @@ contract PositionManager is
 {
     using SafeMath for uint256;
 
-    constructor(address adminContract_) CommonStorage(adminContract_, 10) {
+    constructor(address adminContract_) CommonStorage(adminContract_, 20, 10) {
         adminContract = IAdmin(adminContract_);
     }
 

@@ -35,7 +35,6 @@ contract PositionManagerStorage {
         uint8 decimals;
     }
 
-    uint8 public LEVERAGE_DECIMAL = 2;
     uint8 public FUNDING_RATE_DECIMAL = 4;
 
     uint32 marketCount;

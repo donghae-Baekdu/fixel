@@ -18,7 +18,7 @@ contract CommonStorage {
     uint8 public PRICE_DECIMAL = 9;
     uint8 public VALUE_DECIMAL = 18;
     uint8 public MAX_LEVERAGE;
-    uint8 public DEFAULT_FEE_TIER;
+    uint8 public DEFAULT_FEE_TIER; // bp
 
     //user -> collateralId -> position
     mapping(address => mapping(uint32 => Collateral)) public collaterals;
@@ -29,8 +29,13 @@ contract CommonStorage {
 
     IAdmin adminContract;
 
-    constructor(address adminContractAddress, uint8 DEFAULT_FEE_TIER_) {
+    constructor(
+        address adminContractAddress,
+        uint8 MAX_LEVERAGE_,
+        uint8 DEFAULT_FEE_TIER_
+    ) {
         adminContract = IAdmin(adminContractAddress);
+        MAX_LEVERAGE = MAX_LEVERAGE_;
         DEFAULT_FEE_TIER = DEFAULT_FEE_TIER_;
     }
 

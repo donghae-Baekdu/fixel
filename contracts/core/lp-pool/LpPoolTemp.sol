@@ -14,33 +14,21 @@ import "hardhat/console.sol";
 contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage, CommonStorage {
     using SafeMath for uint256;
 
-    constructor(address adminContract_) CommonStorage(adminContract_, 25) {
+    constructor(address adminContract_) CommonStorage(adminContract_, 10, 25) {
         adminContract = IAdmin(adminContract_);
     }
 
-    function openPosition(
-        address user,
-        uint256 qty,
-        bool isLong
-    ) external {
+    function buyPosition(address user, uint256 qty) external {
         require(user == msg.sender, "No authority to order");
+        // TODO buy position
+        Position storage position = positions[user];
     }
 
-    function closePosition(
-        address user,
-        uint32 marketId,
-        uint256 qty
-    ) external {
+    function sellPosition(address user, uint256 qty) external {
         require(user == msg.sender, "No authority to order");
-        // get price of asset
-        address priceOracle = adminContract.getPriceOracle();
-        uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
-
-        Position storage position = positions[user][marketId];
-
-        require(position.qty.value > qty, "Not enough amount to close");
-
-        updateStatusAfterTrade(user, position, marketId, qty, false);
+        // TODO sell position
+        Position storage position = positions[user];
+        require(position.qty > qty, "Not enough qty to sell");
     }
 
     function updateStatusAfterTrade(
@@ -49,72 +37,7 @@ contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage, CommonStorage {
         uint32 marketId,
         uint256 qty,
         bool isOpen
-    ) internal {
-        address priceOracle = adminContract.getPriceOracle();
-        uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
-        UserInfo storage userInfo = userInfos[user];
-
-        ValueWithSign storage paidValue = userInfo.paidValue;
-
-        uint256 paidValueDelta = MathUtil.mul(
-            qty,
-            price,
-            marketInfos[marketId].decimals,
-            PRICE_DECIMAL,
-            VALUE_DECIMAL
-        );
-
-        // take fee from open notional value
-        uint256 fee = (paidValueDelta * feeTier[user]) / 10000;
-
-        bool paidValueDeltaIsPos = isOpen ? !position.isLong : position.isLong;
-
-        paidValueDelta = paidValueDeltaIsPos
-            ? paidValueDelta - fee
-            : paidValueDelta + fee;
-
-        (paidValue.value, paidValue.isPos) = MathUtil.add(
-            paidValue.value,
-            paidValueDelta,
-            paidValue.isPos,
-            paidValueDeltaIsPos
-        );
-
-        // update qty
-        if (isOpen) {
-            position.qty.value += qty;
-            position.entryPrice =
-                (position.entryPrice * position.qty.value + price * qty) /
-                (position.qty.value + qty);
-
-            checkMaxLeverage(user);
-
-            MarketStatus storage market = marketStatus[marketId];
-
-            if (position.isLong) {
-                market.longQty += qty;
-            } else {
-                market.shortQty += qty;
-            }
-        } else {
-            position.qty.value -= qty;
-
-            MarketStatus storage market = marketStatus[marketId];
-
-            if (position.isLong) {
-                market.longQty -= qty;
-            } else {
-                market.shortQty -= qty;
-            }
-        }
-
-        (netPaidValue.value, netPaidValue.isPos) = MathUtil.add(
-            netPaidValue.value,
-            paidValueDelta,
-            netPaidValue.isPos,
-            paidValueDeltaIsPos
-        );
-    }
+    ) internal {}
 
     function addCollateral(
         address user,
@@ -217,37 +140,7 @@ contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage, CommonStorage {
         }
     }
 
-    function getPnl()
-        external
-        view
-        returns (uint256 _pnlValue, bool _pnlIsPos)
-    {
-        address priceOracle = adminContract.getPriceOracle();
-        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
-        (_pnlValue, _pnlIsPos) = (netPaidValue.value, netPaidValue.isPos);
-        for (uint32 marketId = 0; marketId < marketCount; marketId++) {
-            MarketStatus storage marketStatus = marketStatus[marketId];
-            bool netIsLong = marketStatus.longQty >= marketStatus.shortQty;
-            uint256 netPositionQty = netIsLong
-                ? marketStatus.longQty - marketStatus.shortQty
-                : marketStatus.shortQty - marketStatus.longQty;
-            uint256 price = prices[marketId];
-            MarketInfo storage marketInfo = marketInfos[marketId];
-            uint256 notionalValue = MathUtil.mul(
-                netPositionQty,
-                price,
-                marketInfo.decimals,
-                PRICE_DECIMAL,
-                VALUE_DECIMAL
-            );
-            (_pnlValue, _pnlIsPos) = MathUtil.add(
-                _pnlValue,
-                notionalValue,
-                _pnlIsPos,
-                netIsLong
-            );
-        }
-    }
+    function getLpPositionPrice() external view returns (uint256 _price) {}
 
     function liquidate(
         address user,
@@ -267,82 +160,13 @@ contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage, CommonStorage {
             uint256 _IM,
             ValueWithSign memory _willReceiveValue
         )
-    {
-        UserInfo storage userInfo = userInfos[user];
-        uint32 positionCount = userInfo.positionCount;
-
-        address priceOracle = adminContract.getPriceOracle();
-        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
-
-        for (uint32 i = 0; i < positionCount; i++) {
-            uint32 marketId = userPositionList[user][i];
-            Position storage position = positions[user][marketId];
-            if (position.isOpened) {
-                uint256 price = prices[marketId];
-                MarketInfo storage marketInfo = marketInfos[marketId];
-                uint256 notionalValue = MathUtil.mul(
-                    position.qty.value,
-                    price,
-                    marketInfo.decimals,
-                    PRICE_DECIMAL,
-                    VALUE_DECIMAL
-                );
-                _notionalValue += notionalValue;
-                // add IM
-                _IM +=
-                    (notionalValue * marketInfo.initialMarginFraction) /
-                    10000;
-                // add will receive value
-                (_willReceiveValue.value, _willReceiveValue.isPos) = MathUtil
-                    .add(
-                        _willReceiveValue.value,
-                        notionalValue,
-                        _willReceiveValue.isPos,
-                        position.isLong
-                    );
-            }
-        }
-    }
+    {}
 
     function getLiquidationFactors(address user)
         public
         view
         returns (uint256 _MM, ValueWithSign memory _willReceiveValue)
-    {
-        UserInfo storage userInfo = userInfos[user];
-        uint32 positionCount = userInfo.positionCount;
-
-        address priceOracle = adminContract.getPriceOracle();
-        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
-
-        for (uint32 i = 0; i < positionCount; i++) {
-            uint32 marketId = userPositionList[user][i];
-            Position storage position = positions[user][marketId];
-            if (position.isOpened) {
-                uint256 price = prices[marketId];
-                MarketInfo storage marketInfo = marketInfos[marketId];
-                uint256 notionalValue = MathUtil.mul(
-                    position.qty.value,
-                    price,
-                    marketInfo.decimals,
-                    PRICE_DECIMAL,
-                    VALUE_DECIMAL
-                );
-                // add MM
-                _MM +=
-                    (notionalValue * marketInfo.maintenanceMarginFraction) /
-                    10000;
-                // add will receive value
-                (_willReceiveValue.value, _willReceiveValue.isPos) = MathUtil
-                    .add(
-                        _willReceiveValue.value,
-                        notionalValue,
-                        _willReceiveValue.isPos,
-                        position.isLong
-                    );
-            }
-        }
-    }
+    {}
 
     function getCollateralValue(address user)
         public
