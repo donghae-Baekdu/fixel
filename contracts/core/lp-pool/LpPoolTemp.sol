@@ -20,24 +20,32 @@ contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage, CommonStorage {
 
     function buyPosition(address user, uint256 qty) external {
         require(user == msg.sender, "No authority to order");
-        // TODO buy position
+
         Position storage position = positions[user];
+
+        updateStatusAfterTrade(user, position, qty, true);
     }
 
     function sellPosition(address user, uint256 qty) external {
         require(user == msg.sender, "No authority to order");
-        // TODO sell position
+
         Position storage position = positions[user];
         require(position.qty > qty, "Not enough qty to sell");
+
+        updateStatusAfterTrade(user, position, qty, false);
     }
 
     function updateStatusAfterTrade(
         address user,
         Position storage position,
-        uint32 marketId,
         uint256 qty,
-        bool isOpen
-    ) internal {}
+        bool isBuy
+    ) internal {
+        // TODO get LP Position price
+        // TODO get notional value
+        // TODO get paid value delta (reflect fee at notional value)
+        // TODO
+    }
 
     function addCollateral(
         address user,
@@ -247,3 +255,8 @@ contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage, CommonStorage {
         );
     }
 }
+
+// Note
+// paid value 기록하는 방식은 알겠는데... 이미 position manager로부터 pnl을 받는 상황에서 별도 기록이 필요한가
+// position manager이 손해보는 만큼 lp pool이 이득본거 아닌가 -> fee는 어떡할건데?
+// ; price에는 position manager의 pnl이 반영되어 있으니깐...
