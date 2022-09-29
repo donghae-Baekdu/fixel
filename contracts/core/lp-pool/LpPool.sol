@@ -58,8 +58,7 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
         uint256 fee = (paidValueDelta * getFeeTier(user)) / 10000;
         paidValueDelta = isBuy ? paidValueDelta + fee : paidValueDelta - fee;
 
-        UserInfo storage userInfo = userInfos[user];
-        ValueWithSign storage paidValue = userInfo.paidValue;
+        ValueWithSign storage paidValue = userInfos[user].paidValue;
 
         (paidValue.value, paidValue.isPos) = MathUtil.add(
             paidValue.value,
@@ -75,7 +74,17 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
 
             position.qty += qty;
 
-            checkMaxLeverage(user);
+            uint256 notionalValue = MathUtil.mul(
+                position.qty,
+                price,
+                POSITION_DECIMAL,
+                PRICE_DECIMAL,
+                VALUE_DECIMAL
+            );
+
+            uint256 collateralValue = getCollateralValue(user);
+
+            checkMaxLeverageRequirement(user, notionalValue, collateralValue);
 
             openInterest += qty;
         } else {
@@ -138,18 +147,22 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
         uint32 collateralId,
         uint256 amount
     ) external {
-        (
-            uint256 notionalValue,
-            uint256 IM,
-            ValueWithSign memory willReceiveValue
-        ) = getLeverageFactors(user);
+        Position storage position = positions[user];
+        uint256 price = getLpPositionPrice();
+        uint256 notionalValue = MathUtil.mul(
+            position.qty,
+            price,
+            POSITION_DECIMAL,
+            PRICE_DECIMAL,
+            VALUE_DECIMAL
+        );
 
         if (collateralId == 0) {
             ValueWithSign storage paidValue = userInfos[user].paidValue;
             (uint256 usdQty, bool usdIsPos) = MathUtil.add(
-                willReceiveValue.value,
+                notionalValue,
                 paidValue.value,
-                willReceiveValue.isPos,
+                true,
                 paidValue.isPos
             );
 
@@ -158,6 +171,7 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
                 collateralInfos[0].decimals,
                 VALUE_DECIMAL
             );
+
             require(
                 usdIsPos == true && usdQty >= amountToValueUnit,
                 "Not enough usd to withdraw"
@@ -178,13 +192,7 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
         }
         uint256 collateralValue = getCollateralValue(user);
 
-        checkMaxLeverageRequirement(
-            user,
-            notionalValue,
-            IM,
-            collateralValue,
-            willReceiveValue
-        );
+        checkMaxLeverageRequirement(user, notionalValue, collateralValue);
 
         // transfer token
         if (collateralId == 0) {
@@ -219,32 +227,6 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
         );
     }
 
-    function liquidate(
-        address user,
-        uint32 marketId,
-        uint256 qty
-    ) external {
-        // TODO maximum 50% at once if exceeds certain qty
-    }
-
-    function addMarket() external {}
-
-    function getLeverageFactors(address user)
-        public
-        view
-        returns (
-            uint256 _notionalValue,
-            uint256 _IM,
-            ValueWithSign memory _willReceiveValue
-        )
-    {}
-
-    function getLiquidationFactors(address user)
-        public
-        view
-        returns (uint256 _MM, ValueWithSign memory _willReceiveValue)
-    {}
-
     function getCollateralValue(address user)
         public
         view
@@ -275,52 +257,34 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
         }
     }
 
-    function checkMaxLeverage(address user) internal view {
-        (
-            uint256 notionalValue,
-            uint256 IM,
-            ValueWithSign memory willReceiveValue
-        ) = getLeverageFactors(user);
-
-        uint256 collateralValue = getCollateralValue(user);
-
-        checkMaxLeverageRequirement(
-            user,
-            notionalValue,
-            IM,
-            collateralValue,
-            willReceiveValue
-        );
-    }
-
     function checkMaxLeverageRequirement(
         address user,
         uint256 notionalValue,
-        uint256 IM,
-        uint256 collateralValue,
-        ValueWithSign memory willReceiveValue
+        uint256 collateralValue
     ) internal view {
         ValueWithSign memory accountValue;
         ValueWithSign storage paidValue = userInfos[user].paidValue;
         (accountValue.value, accountValue.isPos) = MathUtil.add(
-            willReceiveValue.value,
+            notionalValue + collateralValue,
             paidValue.value,
-            willReceiveValue.isPos,
-            paidValue.isPos
-        );
-
-        (accountValue.value, accountValue.isPos) = MathUtil.add(
-            collateralValue,
-            accountValue.value,
             true,
-            accountValue.isPos
+            paidValue.isPos
         );
 
         require(
             accountValue.isPos &&
                 accountValue.value * MAX_LEVERAGE > notionalValue &&
-                accountValue.value > IM,
+                accountValue.value >
+                (notionalValue * INITIAL_MARGIN_FRACTION) / 10000,
             "Exceeds Max Leverage"
         );
+    }
+
+    function liquidate(
+        address user,
+        uint32 marketId,
+        uint256 qty
+    ) external {
+        // TODO maximum 50% at once if exceeds certain qty
     }
 }

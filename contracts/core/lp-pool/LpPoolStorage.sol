@@ -18,12 +18,24 @@ contract LpPoolStorage {
         uint256 lastOpenTimestamp;
     }
 
-    uint8 public POSITION_DECIMAL = 9;
-
     ValueWithSign entryValue;
     uint256 openInterest;
+
+    uint8 public POSITION_DECIMAL = 9;
+    uint32 public INITIAL_MARGIN_FRACTION = 500; // bp
+    uint32 public MAINT_MARGIN_FRACTION = 200; // bp
 
     mapping(address => UserInfo) public userInfos;
 
     mapping(address => Position) public positions;
+
+    function setInitialMarginFraction(uint32 IR) external {
+        // TODO only owner
+        INITIAL_MARGIN_FRACTION = IR;
+    }
+
+    function setMaintMarginFraction(uint32 MMR) external {
+        // TODO only owner
+        MAINT_MARGIN_FRACTION = MMR;
+    }
 }

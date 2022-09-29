@@ -40,10 +40,12 @@ contract CommonStorage {
     }
 
     function setDefaultFeeTier(uint8 feeTier) external {
+        // TODO only owner
         DEFAULT_FEE_TIER = feeTier;
     }
 
     function setFeeTier(address user, uint8 feeTier) external {
+        // TODO only owner
         feeTiers[user] = feeTier;
     }
 
