@@ -78,7 +78,7 @@ contract PositionManager is
         uint256 paidValueDelta = MathUtil.mul(
             qty,
             price,
-            marketInfos[marketId].decimals,
+            markets[marketId].decimals,
             PRICE_DECIMAL,
             VALUE_DECIMAL
         );
@@ -108,7 +108,7 @@ contract PositionManager is
 
             checkMaxLeverage(user);
 
-            MarketStatus storage market = marketStatus[marketId];
+            Market storage market = markets[marketId];
 
             if (position.isLong) {
                 market.longQty += qty;
@@ -118,7 +118,7 @@ contract PositionManager is
         } else {
             position.qty.value -= qty;
 
-            MarketStatus storage market = marketStatus[marketId];
+            Market storage market = markets[marketId];
 
             if (position.isLong) {
                 market.longQty -= qty;
@@ -248,18 +248,22 @@ contract PositionManager is
         address priceOracle = adminContract.getPriceOracle();
         uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
         (_pnlValue, _pnlIsPos) = (netPaidValue.value, netPaidValue.isPos);
-        for (uint32 marketId = 0; marketId < marketCount; marketId++) {
-            MarketStatus storage marketStatus = marketStatus[marketId];
-            bool netIsLong = marketStatus.longQty >= marketStatus.shortQty;
+        for (uint32 i = 0; i < marketCount; i++) {
+            uint32 marketId = marketList[i];
+            Market storage market = markets[marketId];
+
+            bool netIsLong = market.longQty >= market.shortQty;
+
             uint256 netPositionQty = netIsLong
-                ? marketStatus.longQty - marketStatus.shortQty
-                : marketStatus.shortQty - marketStatus.longQty;
+                ? market.longQty - market.shortQty
+                : market.shortQty - market.longQty;
+
             uint256 price = prices[marketId];
-            MarketInfo storage marketInfo = marketInfos[marketId];
+
             uint256 notionalValue = MathUtil.mul(
                 netPositionQty,
                 price,
-                marketInfo.decimals,
+                market.decimals,
                 PRICE_DECIMAL,
                 VALUE_DECIMAL
             );
@@ -271,16 +275,6 @@ contract PositionManager is
             );
         }
     }
-
-    function liquidate(
-        address user,
-        uint32 marketId,
-        uint256 qty
-    ) external {
-        // TODO maximum 50% at once if exceeds certain qty
-    }
-
-    function addMarket() external {}
 
     function getLeverageFactors(address user)
         public
@@ -302,19 +296,17 @@ contract PositionManager is
             Position storage position = positions[user][marketId];
             if (position.isOpened) {
                 uint256 price = prices[marketId];
-                MarketInfo storage marketInfo = marketInfos[marketId];
+                Market storage market = markets[marketId];
                 uint256 notionalValue = MathUtil.mul(
                     position.qty.value,
                     price,
-                    marketInfo.decimals,
+                    market.decimals,
                     PRICE_DECIMAL,
                     VALUE_DECIMAL
                 );
                 _notionalValue += notionalValue;
                 // add IM
-                _IM +=
-                    (notionalValue * marketInfo.initialMarginFraction) /
-                    10000;
+                _IM += (notionalValue * market.initialMarginFraction) / 10000;
                 // add will receive value
                 (_willReceiveValue.value, _willReceiveValue.isPos) = MathUtil
                     .add(
@@ -343,17 +335,17 @@ contract PositionManager is
             Position storage position = positions[user][marketId];
             if (position.isOpened) {
                 uint256 price = prices[marketId];
-                MarketInfo storage marketInfo = marketInfos[marketId];
+                Market storage market = markets[marketId];
                 uint256 notionalValue = MathUtil.mul(
                     position.qty.value,
                     price,
-                    marketInfo.decimals,
+                    market.decimals,
                     PRICE_DECIMAL,
                     VALUE_DECIMAL
                 );
                 // add MM
                 _MM +=
-                    (notionalValue * marketInfo.maintenanceMarginFraction) /
+                    (notionalValue * market.maintenanceMarginFraction) /
                     10000;
                 // add will receive value
                 (_willReceiveValue.value, _willReceiveValue.isPos) = MathUtil
@@ -444,5 +436,13 @@ contract PositionManager is
                 accountValue.value > IM,
             "Exceeds Max Leverage"
         );
+    }
+
+    function liquidate(
+        address user,
+        uint32 marketId,
+        uint256 qty
+    ) external {
+        // TODO maximum 50% at once if exceeds certain qty
     }
 }

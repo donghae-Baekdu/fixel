@@ -11,6 +11,7 @@ contract CommonStorage {
     struct CollateralInfo {
         address tokenAddress;
         uint32 collateralId;
+        uint32 oracleKey;
         uint32 weight;
         uint8 decimals;
     }
@@ -26,8 +27,6 @@ contract CommonStorage {
     mapping(uint32 => CollateralInfo) public collateralInfos;
 
     mapping(address => uint8) feeTiers; // bp
-
-    uint32 public collateralCount;
 
     IAdmin adminContract;
 
@@ -58,9 +57,17 @@ contract CommonStorage {
     function listNewCollateral(
         address tokenAddress,
         uint32 collateralId,
+        uint32 oracleKey,
         uint32 weight,
         uint8 decimals
     ) external {
         // TODO only owner
+        collateralInfos[collateralId] = CollateralInfo(
+            tokenAddress,
+            collateralId,
+            oracleKey,
+            weight,
+            decimals
+        );
     }
 }

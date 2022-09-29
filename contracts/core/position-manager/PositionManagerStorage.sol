@@ -23,13 +23,11 @@ contract PositionManagerStorage {
         bool beenOpened;
     }
 
-    struct MarketStatus {
+    struct Market {
         uint256 longQty;
         uint256 shortQty;
-    }
-
-    struct MarketInfo {
         uint32 marketId;
+        uint32 oracleId;
         uint32 initialMarginFraction; // bp
         uint32 maintenanceMarginFraction; // bp
         uint8 decimals;
@@ -37,7 +35,6 @@ contract PositionManagerStorage {
 
     uint8 public FUNDING_RATE_DECIMAL = 4;
 
-    uint32 marketCount;
     ValueWithSign netPaidValue;
 
     mapping(address => UserInfo) public userInfos;
@@ -46,15 +43,29 @@ contract PositionManagerStorage {
     mapping(address => mapping(uint32 => Position)) public positions;
     mapping(address => mapping(uint32 => uint32)) public userPositionList;
 
-    mapping(uint32 => MarketStatus) public marketStatus;
-    mapping(uint32 => MarketInfo) public marketInfos;
+    mapping(uint32 => Market) public markets;
+
+    uint32 marketCount;
+    mapping(uint32 => uint32) public marketList;
 
     function listNewMarket(
         uint32 marketId,
+        uint32 oracleId,
         uint32 initialMarginFraction,
         uint32 maintenanceMarginFraction,
         uint8 decimals
     ) external {
         // TODO only owner
+        markets[marketId] = Market(
+            0,
+            0,
+            marketId,
+            oracleId,
+            initialMarginFraction,
+            maintenanceMarginFraction,
+            decimals
+        );
+        marketList[marketCount] = marketId;
+        marketCount++;
     }
 }
