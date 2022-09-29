@@ -232,8 +232,7 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
         view
         returns (uint256 _collateralValue)
     {
-        UserInfo storage userInfo = userInfos[user];
-        uint32 collateralCount = userInfo.collateralCount;
+        uint32 collateralCount = userInfos[user].collateralCount;
 
         address priceOracle = adminContract.getPriceOracle();
         uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
