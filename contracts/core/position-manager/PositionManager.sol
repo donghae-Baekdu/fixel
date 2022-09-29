@@ -71,9 +71,8 @@ contract PositionManager is
     ) internal {
         address priceOracle = adminContract.getPriceOracle();
         uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
-        UserInfo storage userInfo = userInfos[user];
 
-        ValueWithSign storage paidValue = userInfo.paidValue;
+        ValueWithSign storage paidValue = userInfos[user].paidValue;
 
         uint256 paidValueDelta = MathUtil.mul(
             qty,
@@ -285,8 +284,7 @@ contract PositionManager is
             ValueWithSign memory _willReceiveValue
         )
     {
-        UserInfo storage userInfo = userInfos[user];
-        uint32 positionCount = userInfo.positionCount;
+        uint32 positionCount = userInfos[user].positionCount;
 
         address priceOracle = adminContract.getPriceOracle();
         uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
@@ -324,8 +322,7 @@ contract PositionManager is
         view
         returns (uint256 _MM, ValueWithSign memory _willReceiveValue)
     {
-        UserInfo storage userInfo = userInfos[user];
-        uint32 positionCount = userInfo.positionCount;
+        uint32 positionCount = userInfos[user].positionCount;
 
         address priceOracle = adminContract.getPriceOracle();
         uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
@@ -364,8 +361,7 @@ contract PositionManager is
         view
         returns (uint256 _collateralValue)
     {
-        UserInfo storage userInfo = userInfos[user];
-        uint32 collateralCount = userInfo.collateralCount;
+        uint32 collateralCount = userInfos[user].collateralCount;
 
         address priceOracle = adminContract.getPriceOracle();
         uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
