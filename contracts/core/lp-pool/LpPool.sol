@@ -45,11 +45,50 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
         uint256 qty,
         bool isBuy
     ) internal {
-        // TODO get LP Position price
+        // get LP Position price
         uint256 price = getLpPositionPrice();
-        // TODO get notional value
-        // TODO get paid value delta (reflect fee at notional value)
-        // TODO
+        // get notional value
+        uint256 paidValueDelta = MathUtil.mul(
+            price,
+            qty,
+            PRICE_DECIMAL,
+            POSITION_DECIMAL,
+            VALUE_DECIMAL
+        );
+        uint256 fee = (paidValueDelta * getFeeTier(user)) / 10000;
+        paidValueDelta = isBuy ? paidValueDelta + fee : paidValueDelta - fee;
+
+        UserInfo storage userInfo = userInfos[user];
+        ValueWithSign storage paidValue = userInfo.paidValue;
+
+        (paidValue.value, paidValue.isPos) = MathUtil.add(
+            paidValue.value,
+            paidValueDelta,
+            paidValue.isPos,
+            !isBuy
+        );
+
+        if (isBuy) {
+            position.entryPrice =
+                (position.entryPrice * position.qty + price * qty) /
+                (position.qty + qty);
+
+            position.qty += qty;
+
+            checkMaxLeverage(user);
+
+            openInterest += qty;
+        } else {
+            position.qty -= qty;
+            openInterest -= qty;
+        }
+
+        (entryValue.value, entryValue.isPos) = MathUtil.add(
+            entryValue.value,
+            paidValueDelta,
+            entryValue.isPos,
+            isBuy
+        );
     }
 
     function addCollateral(
@@ -58,9 +97,13 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
         uint256 amount
     ) external {
         // transfer token
-        address tokenAddress = collateralInfos[collateralId].tokenAddress;
-        address lpPool = adminContract.getLpPool();
-        IERC20(tokenAddress).transferFrom(user, lpPool, amount);
+        if (collateralId == 0) {
+            // TODO burn
+        } else {
+            address tokenAddress = collateralInfos[collateralId].tokenAddress;
+            address lpPool = adminContract.getLpPool();
+            IERC20(tokenAddress).transferFrom(user, lpPool, amount);
+        }
 
         if (collateralId == 0) {
             ValueWithSign storage paidValue = userInfos[user].paidValue;

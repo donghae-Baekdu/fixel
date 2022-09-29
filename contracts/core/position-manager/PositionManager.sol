@@ -101,10 +101,10 @@ contract PositionManager is
 
         // update qty
         if (isOpen) {
-            position.qty.value += qty;
             position.entryPrice =
                 (position.entryPrice * position.qty.value + price * qty) /
                 (position.qty.value + qty);
+            position.qty.value += qty;
 
             checkMaxLeverage(user);
 

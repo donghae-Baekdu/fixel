@@ -8,20 +8,17 @@ contract LpPoolStorage {
 
     struct UserInfo {
         ValueWithSign paidValue;
-        uint32 positionCount;
         uint32 collateralCount;
     }
 
     struct Position {
         address user;
-        uint32 marketId;
         uint256 qty;
         uint256 entryPrice;
         uint256 lastOpenTimestamp;
-        bool isLong;
-        bool isOpened;
-        bool beenOpened;
     }
+
+    uint8 public POSITION_DECIMAL = 9;
 
     ValueWithSign entryValue;
     uint256 openInterest;
