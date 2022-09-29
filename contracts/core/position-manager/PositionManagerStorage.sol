@@ -48,4 +48,13 @@ contract PositionManagerStorage {
 
     mapping(uint32 => MarketStatus) public marketStatus;
     mapping(uint32 => MarketInfo) public marketInfos;
+
+    function listNewMarket(
+        uint32 marketId,
+        uint32 initialMarginFraction,
+        uint32 maintenanceMarginFraction,
+        uint8 decimals
+    ) external {
+        // TODO only owner
+    }
 }

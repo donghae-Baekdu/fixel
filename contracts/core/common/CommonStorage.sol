@@ -27,6 +27,8 @@ contract CommonStorage {
 
     mapping(address => uint8) feeTiers; // bp
 
+    uint32 public collateralCount;
+
     IAdmin adminContract;
 
     constructor(
@@ -51,5 +53,14 @@ contract CommonStorage {
 
     function getFeeTier(address user) public view returns (uint8 _feeTier) {
         _feeTier = feeTiers[user] == 0 ? feeTiers[user] : DEFAULT_FEE_TIER;
+    }
+
+    function listNewCollateral(
+        address tokenAddress,
+        uint32 collateralId,
+        uint32 weight,
+        uint8 decimals
+    ) external {
+        // TODO only owner
     }
 }
