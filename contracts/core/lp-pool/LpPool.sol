@@ -98,7 +98,7 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
     ) external {
         // transfer token
         if (collateralId == 0) {
-            // TODO burn
+            // TODO burn @oliver
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
             address lpPool = adminContract.getLpPool();
@@ -188,7 +188,7 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
 
         // transfer token
         if (collateralId == 0) {
-            // TODO mint stable coin
+            // TODO mint stable coin @oliver
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
             address lpPool = adminContract.getLpPool();

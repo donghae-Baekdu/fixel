@@ -141,9 +141,13 @@ contract PositionManager is
         uint256 amount
     ) external {
         // transfer token
-        address tokenAddress = collateralInfos[collateralId].tokenAddress;
-        address lpPool = adminContract.getLpPool();
-        IERC20(tokenAddress).transferFrom(user, lpPool, amount);
+        if (collateralId == 0) {
+            // TODO burn @oliver
+        } else {
+            address tokenAddress = collateralInfos[collateralId].tokenAddress;
+            address lpPool = adminContract.getLpPool();
+            IERC20(tokenAddress).transferFrom(user, lpPool, amount);
+        }
 
         if (collateralId == 0) {
             ValueWithSign storage paidValue = userInfos[user].paidValue;
@@ -157,7 +161,6 @@ contract PositionManager is
                 paidValue.isPos,
                 true
             );
-            // TODO BURN
         } else {
             Collateral storage collateral = collaterals[user][collateralId];
             // add to collateral list
@@ -229,7 +232,7 @@ contract PositionManager is
 
         // transfer token
         if (collateralId == 0) {
-            // TODO mint stable coin
+            // TODO mint stable coin @oliver
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
             address lpPool = adminContract.getLpPool();
@@ -443,7 +446,3 @@ contract PositionManager is
         );
     }
 }
-
-// TODO
-// fee 수취시 net pnl에 끼치는 영향
-// liquidation
