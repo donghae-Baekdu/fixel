@@ -1,112 +1,32 @@
 pragma solidity ^0.8.9;
 
 interface ILpPool {
-    enum exchangerCall {
-        yes,
-        no
-    }
+    function buyPosition(address user, uint256 amount) external;
 
-    event LiquidityAdded(
+    function sellPosition(address user, uint256 amount) external;
+
+    function addCollateral(
         address user,
-        uint256 depositedCollateral,
-        uint256 mintedLpToken,
-        uint256 notionalValueInLpToken
-    );
+        uint32 collateralId,
+        uint256 amount
+    ) external;
 
-    event LiquidityRemoved(
+    function removeCollateral(
         address user,
-        uint256 withdrewCollateral,
-        uint256 burntLpToken
-    );
-
-    struct Position {
-        uint256 margin; // collateral unit
-        uint256 notionalEntryAmount; // collateral unit
-        uint256 lpPositionSize; // lp token unit
-    }
-
-    // debt = notionalEntryAmount - margin
-
-    function addLiquidity(
-        address user,
-        uint256 depositQty, // unit is collateral
-        uint256 notionalValue, // unit is collateral
-        exchangerCall flag
-    ) external returns (uint256 _amountToMint, uint256 _notionalValueInLpToken);
-
-    function getAmountToMint(uint256 depositQty, uint256 notionalValue)
-        external
-        view
-        returns (uint256 _amountToMint, uint256 _notionalValueInLpToken);
-
-    function removeLiquidity(
-        address user,
-        uint256 liquidity, // lp token if exchanger, collateral if lp manager
-        uint256 notionalValue, // unit is lp token
-        exchangerCall flag
-    ) external returns (uint256 _amountToWithdraw);
-
-    function getAmountToWithdraw(
-        uint256 lpTokenQty // LP token unit
-    )
-        external
-        view
-        returns (uint256 _amountToWithdraw, uint256 _potentialSupply);
-
-    function getPotentialSupply() external view returns (uint256 _qty);
-
-    function setFeeTier(uint80 fee, bool isExchangerCall) external;
-
-    function getFeeTier(bool isExchangerCall)
-        external
-        view
-        returns (uint80 _fee, uint80 _feeTierDenom);
-
-    function mint(address to, uint256 value) external;
-
-    function burn(address to, uint256 value) external;
-
-    function collectExchangeFee(uint256 notionalValue)
-        external
-        returns (uint256 _totalFee);
-
-    function getLpFee(
-        uint256 notionalValue // collateral unit
-    ) external view returns (uint256 _totalFee);
-
-    function collateralToLpTokenConvertUnit(
-        uint256 potentialSupply,
-        uint256 collateral
-    ) external view returns (uint256 _lpToken);
-
-    function lpTokenToCollateralConvertUnit(
-        uint256 potentialSupply,
-        uint256 lpToken
-    ) external view returns (uint256 _collateral);
+        uint32 collateralId,
+        uint256 amount
+    ) external;
 
     function liquidate(
         address user,
-        uint256 positionQty,
-        address recipient
+        uint32 marketId,
+        uint256 qty
     ) external;
 
-    function underlyingToken() external view returns (address);
-
-    function collateralLocked() external view returns (uint256);
-
-    function getInputAmountToMint(uint256 outputAmount)
+    function getCollateralValue(address user)
         external
         view
-        returns (uint256 _inputAmount);
+        returns (uint256 _collateralValue);
 
-    function getLpPosition(address user)
-        external
-        view
-        returns (
-            uint256 _margin,
-            uint256 _notionalEntryAmount,
-            uint256 _lpPositionSize
-        );
-
-    function getLpPnl(address user) external view returns (uint256 _pnl);
+    function getLpPositionPrice() external view returns (uint256 _price);
 }

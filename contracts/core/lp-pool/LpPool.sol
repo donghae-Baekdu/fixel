@@ -1,449 +1,290 @@
 pragma solidity ^0.8.9;
 
-import "../position-manager/PositionManager.sol";
-import "./LpToken.sol";
-import "../../interfaces/IAdmin.sol";
-import "../../interfaces/ILpPool.sol";
-import "../../interfaces/IPositionManager.sol";
-import "../../USDC.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {LpPoolStorage} from "./LpPoolStorage.sol";
+import {CommonStorage} from "../common/CommonStorage.sol";
 
+import {IPriceOracle} from "../../interfaces/IPriceOracle.sol";
+import {IPositionManager} from "../../interfaces/IPositionManager.sol";
+import {IAdmin} from "../../interfaces/IAdmin.sol";
+import {ILpPool} from "../../interfaces/ILpPool.sol";
+
+import {MathUtil} from "../../libraries/MathUtil.sol";
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "hardhat/console.sol";
 
-contract LpPool is LpToken, ILpPool, Ownable {
+contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
     using SafeMath for uint256;
-    using SafeMath for uint80;
-    using SafeERC20 for IERC20;
 
-    address admin;
-
-    address public override underlyingToken;
-    uint8 public UNDERLYING_TOKEN_DECIMAL;
-
-    uint80 public constant feeTierDenom = 10000;
-    uint80 public constant initialExachangeRate = 1; // GD -> USD
-    uint80 public MINIMUM_UNDERLYING;
-    uint80 defaultExchangeFeeTier; // bp
-    uint80 defaultLpFeeTier; // bp
-    uint80 liquidationFee = 100;
-
-    uint256 public override collateralLocked;
-    mapping(address => Position) positions;
-
-    constructor(address _underlyingToken, address _admin) public {
-        underlyingToken = _underlyingToken;
-        UNDERLYING_TOKEN_DECIMAL = USDC(underlyingToken).decimals();
-        admin = _admin;
+    constructor(address adminContract_) CommonStorage(adminContract_, 10, 25) {
+        adminContract = IAdmin(adminContract_);
     }
 
-    modifier onlyExchanger() {
-        require(
-            msg.sender == IAdmin(admin).getPositionManager(),
-            "You are not Exchanger of this pool"
-        );
-        _;
+    function buyPosition(address user, uint256 qty) external {
+        require(user == msg.sender, "No authority to order");
+
+        Position storage position = positions[user];
+
+        updateStatusAfterTrade(user, position, qty, true);
     }
 
-    function addLiquidity(
+    function sellPosition(address user, uint256 qty) external {
+        require(user == msg.sender, "No authority to order");
+
+        Position storage position = positions[user];
+        require(position.qty > qty, "Not enough qty to sell");
+
+        updateStatusAfterTrade(user, position, qty, false);
+    }
+
+    function updateStatusAfterTrade(
         address user,
-        uint256 depositQty, // unit is collateral
-        uint256 notionalValue, // unit is collateral
-        exchangerCall flag
-    )
-        external
-        returns (uint256 _amountToMint, uint256 _notionalValueInLpToken)
-    {
-        require(
-            flag == exchangerCall.yes || flag == exchangerCall.no,
-            "Improper flag"
-        );
+        Position storage position,
+        uint256 qty,
+        bool isBuy
+    ) internal {
+        // TODO get LP Position price
+        uint256 price = getLpPositionPrice();
+        // TODO get notional value
+        // TODO get paid value delta (reflect fee at notional value)
+        // TODO
+    }
 
-        bool isExchangerCall = flag == exchangerCall.yes;
+    function addCollateral(
+        address user,
+        uint32 collateralId,
+        uint256 amount
+    ) external {
+        // transfer token
+        address tokenAddress = collateralInfos[collateralId].tokenAddress;
+        address lpPool = adminContract.getLpPool();
+        IERC20(tokenAddress).transferFrom(user, lpPool, amount);
 
-        if (isExchangerCall) {
-            require(
-                msg.sender == IAdmin(admin).getPositionManager(),
-                "Not allowed to add liquidity as a trader"
+        if (collateralId == 0) {
+            ValueWithSign storage paidValue = userInfos[user].paidValue;
+            (paidValue.value, paidValue.isPos) = MathUtil.add(
+                paidValue.value,
+                MathUtil.convertDecimals(
+                    amount,
+                    collateralInfos[0].decimals,
+                    VALUE_DECIMAL
+                ),
+                paidValue.isPos,
+                true
             );
-
-            (_amountToMint, _notionalValueInLpToken) = getAmountToMint(
-                depositQty,
-                notionalValue
-            );
-
-            // transfer from user to lp pool
-            IERC20(underlyingToken).safeTransferFrom(
-                user,
-                address(this),
-                depositQty
-            );
-
-            collateralLocked += depositQty;
-
-            // mint token
-            if (_amountToMint != 0) {
-                _mint(msg.sender, _amountToMint);
+        } else {
+            Collateral storage collateral = collaterals[user][collateralId];
+            // add to collateral list
+            if (!collateral.beenDeposited) {
+                UserInfo storage userInfo = userInfos[user];
+                userCollateralList[user][
+                    userInfo.collateralCount
+                ] = collateralId;
+                userInfo.collateralCount++;
+                collateral.beenDeposited = true;
             }
-
-            emit LiquidityAdded(
-                user,
-                depositQty,
-                _amountToMint,
-                _notionalValueInLpToken
-            );
-        } else {
-            require(
-                msg.sender == user,
-                "Not allowed to remove liquidity as a lp"
-            );
-
-            require(
-                IERC20(underlyingToken).balanceOf(user) >= depositQty,
-                "Not Enough Balance To Deposit"
-            );
-
-            (_amountToMint, _notionalValueInLpToken) = getAmountToMint(
-                notionalValue,
-                notionalValue
-            );
-
-            // transfer from user to lp pool
-            IERC20(underlyingToken).safeTransferFrom(
-                user,
-                address(this),
-                depositQty
-            );
-
-            collateralLocked += notionalValue;
-            positions[user].notionalEntryAmount += notionalValue;
-            positions[user].margin += depositQty;
-
-            _collectLpFee(user, notionalValue);
-
-            // mint token
-            if (_amountToMint != 0) {
-                _mint(msg.sender, _amountToMint);
-                positions[user].lpPositionSize += _amountToMint;
-            }
-
-            emit LiquidityAdded(
-                user,
-                depositQty,
-                _amountToMint,
-                _notionalValueInLpToken
-            );
+            // add collateral
+            collateral.qty += amount;
         }
     }
 
-    function getAmountToMint(uint256 depositQty, uint256 notionalValue)
-        public
-        view
-        returns (
-            uint256 _amountToMint, // lp token unit
-            uint256 _notionalValueInLpToken // lp token unit
-        )
-    {
-        uint256 potentialSupply = getPotentialSupply();
-        _amountToMint = collateralToLpTokenConvertUnit(
-            potentialSupply,
-            depositQty
-        );
-
-        _notionalValueInLpToken = collateralToLpTokenConvertUnit(
-            potentialSupply,
-            notionalValue
-        );
-    }
-
-    function getInputAmountToMint(uint256 outputAmount)
-        public
-        view
-        returns (uint256 _inputAmount)
-    {
-        uint256 potentialSupply = getPotentialSupply();
-        _inputAmount = lpTokenToCollateralConvertUnit(
-            potentialSupply,
-            outputAmount
-        );
-    }
-
-    function removeLiquidity(
+    function removeCollateral(
         address user,
-        uint256 liquidity, // lp token if exchanger, collateral if lp manager
-        uint256 notionalValue, // unit is lp token
-        exchangerCall flag
-    ) public returns (uint256 _amountToWithdraw) {
-        require(
-            flag == exchangerCall.yes || flag == exchangerCall.no,
-            "Improper flag"
+        uint32 collateralId,
+        uint256 amount
+    ) external {
+        (
+            uint256 notionalValue,
+            uint256 IM,
+            ValueWithSign memory willReceiveValue
+        ) = getLeverageFactors(user);
+
+        if (collateralId == 0) {
+            ValueWithSign storage paidValue = userInfos[user].paidValue;
+            (uint256 usdQty, bool usdIsPos) = MathUtil.add(
+                willReceiveValue.value,
+                paidValue.value,
+                willReceiveValue.isPos,
+                paidValue.isPos
+            );
+
+            uint256 amountToValueUnit = MathUtil.convertDecimals(
+                amount,
+                collateralInfos[0].decimals,
+                VALUE_DECIMAL
+            );
+            require(
+                usdIsPos == true && usdQty >= amountToValueUnit,
+                "Not enough usd to withdraw"
+            );
+
+            (paidValue.value, paidValue.isPos) = MathUtil.sub(
+                paidValue.value,
+                amountToValueUnit,
+                paidValue.isPos,
+                true
+            );
+        } else {
+            Collateral storage collateral = collaterals[user][collateralId];
+            require(collateral.qty >= amount, "Not enough token to withdraw");
+
+            // reduce collateral
+            collateral.qty -= amount;
+        }
+        uint256 collateralValue = getCollateralValue(user);
+
+        checkMaxLeverageRequirement(
+            user,
+            notionalValue,
+            IM,
+            collateralValue,
+            willReceiveValue
         );
 
-        bool isExchangerCall = flag == exchangerCall.yes;
-
-        if (isExchangerCall) {
-            require(
-                msg.sender == IAdmin(admin).getPositionManager(),
-                "Not allowed to remove liquidity as a trader"
-            );
-
-            (_amountToWithdraw, ) = getAmountToWithdraw(liquidity);
-
-            // transfer from pool to user
-            IERC20(underlyingToken).transfer(user, _amountToWithdraw);
-            collateralLocked -= _amountToWithdraw;
-            // burn lp token
-            _burn(msg.sender, liquidity);
-
-            emit LiquidityRemoved(user, _amountToWithdraw, liquidity);
+        // transfer token
+        if (collateralId == 0) {
+            // TODO mint stable coin
         } else {
-            require(
-                msg.sender == user,
-                "Not allowed to remove liquidity as a lp"
-            );
-
-            (
-                uint256 exchangedAmount,
-                uint256 potentialSupply
-            ) = getAmountToWithdraw(notionalValue);
-
-            Position storage position = positions[user];
-            // collect fee
-            uint256 totalFee = _collectLpFee(user, exchangedAmount);
-            // burn lp token
-            _burn(msg.sender, notionalValue);
-            potentialSupply -= notionalValue;
-            position.lpPositionSize -= notionalValue;
-
-            // repay debt first
-            _repayLpDebt(user, exchangedAmount);
-
-            _amountToWithdraw = exchangedAmount.sub(totalFee);
-
-            require(
-                (
-                    position
-                        .margin
-                        .add(
-                            lpTokenToCollateralConvertUnit(
-                                potentialSupply,
-                                position.lpPositionSize
-                            )
-                        )
-                        .sub(position.notionalEntryAmount)
-                        .sub(liquidity)
-                ).mul(1000).div(position.margin) >= 50,
-                "Not able to remove liquidity. Too high leverage."
-            );
-
-            // transfer liquidity out if available
-            IERC20(underlyingToken).transfer(user, liquidity);
-            position.margin -= liquidity;
-
-            emit LiquidityRemoved(user, _amountToWithdraw, liquidity);
+            address tokenAddress = collateralInfos[collateralId].tokenAddress;
+            address lpPool = adminContract.getLpPool();
+            IERC20(tokenAddress).transferFrom(lpPool, user, amount);
         }
     }
 
-    function getAmountToWithdraw(
-        uint256 lpTokenQty // LP token unit
-    )
-        public
-        view
-        returns (uint256 _amountToWithdraw, uint256 _potentialSupply)
-    {
-        // get lp token price
-        _potentialSupply = getPotentialSupply();
-
-        _amountToWithdraw = lpTokenToCollateralConvertUnit(
-            _potentialSupply,
-            lpTokenQty
+    function getLpPositionPrice() public view returns (uint256 _price) {
+        uint256 lpPoolValue = getLpPoolValue();
+        _price = MathUtil.div(
+            lpPoolValue,
+            openInterest,
+            VALUE_DECIMAL,
+            0,
+            PRICE_DECIMAL
         );
     }
 
-    function getPotentialSupply() public view returns (uint256 _qty) {
-        // potential supply: supply + unrealized pnl from position manager
-        address positionManager = IAdmin(admin).getPositionManager();
-        (bool isPositive, uint256 potentialSupply) = IPositionManager(
-            positionManager
-        ).getTotalUnrealizedPnl();
-
-        _qty = isPositive
-            ? totalSupply.add(potentialSupply)
-            : totalSupply.sub(potentialSupply);
-    }
-
-    function collectExchangeFee(uint256 notionalValue)
-        external
-        onlyExchanger
-        returns (uint256 _totalFee)
-    {
-        _totalFee = notionalValue.sub(
-            notionalValue.mul(feeTierDenom.sub(defaultExchangeFeeTier)).div(
-                feeTierDenom
-            )
+    function getLpPoolValue() public view returns (uint256 _value) {
+        address positionManager = adminContract.getPositionManager();
+        (uint256 pnl, bool pnlIsPos) = IPositionManager(positionManager)
+            .getPnl();
+        (_value, ) = MathUtil.add(
+            entryValue.value,
+            pnl,
+            entryValue.isPos,
+            pnlIsPos
         );
-        _burn(msg.sender, _totalFee);
-    }
-
-    function _collectLpFee(
-        address user,
-        uint256 notionalValue // collateral unit
-    ) internal returns (uint256 _totalFee) {
-        _totalFee = getLpFee(notionalValue);
-        positions[user].margin -= _totalFee;
-    }
-
-    function getLpFee(
-        uint256 notionalValue // collateral unit
-    ) public view returns (uint256 _totalFee) {
-        _totalFee = notionalValue.sub(
-            notionalValue.mul(feeTierDenom.sub(defaultLpFeeTier)).div(
-                feeTierDenom
-            )
-        );
-    }
-
-    function _repayLpDebt(address user, uint256 repayAmount) internal {
-        if (positions[user].notionalEntryAmount >= repayAmount) {
-            positions[user].notionalEntryAmount -= repayAmount;
-            collateralLocked -= repayAmount;
-        } else {
-            positions[user].margin += repayAmount;
-            positions[user].margin -= positions[user].notionalEntryAmount;
-
-            collateralLocked -= positions[user].notionalEntryAmount;
-
-            positions[user].notionalEntryAmount = 0;
-        }
     }
 
     function liquidate(
         address user,
-        uint256 positionQty,
-        address recipient
+        uint32 marketId,
+        uint256 qty
     ) external {
-        (
-            uint256 exchangedAmount,
-            uint256 potentialSupply
-        ) = getAmountToWithdraw(positionQty);
-        Position storage position = positions[user];
-        require(
-            (
-                position
-                    .margin
-                    .add(
-                        lpTokenToCollateralConvertUnit(
-                            potentialSupply,
-                            position.lpPositionSize
-                        )
-                    )
-                    .sub(position.notionalEntryAmount)
-            ).mul(1000).div(position.margin) < 50,
-            "Not able to liquidate"
-        );
-        // collect fee
-        _collectLpFee(user, exchangedAmount);
-        _receiveLiquidationFee(user, exchangedAmount, recipient);
-
-        // burn lp token
-        _burn(msg.sender, positionQty);
-        potentialSupply -= positionQty;
-        position.lpPositionSize -= positionQty;
-
-        _repayLpDebt(user, exchangedAmount);
+        // TODO maximum 50% at once if exceeds certain qty
     }
 
-    function _receiveLiquidationFee(
-        address user,
-        uint256 liquidationAmount, // collateral unit
-        address recipient
-    ) internal returns (uint256 _fee) {
-        _fee = liquidationAmount.sub(
-            liquidationAmount.mul(feeTierDenom.sub(liquidationFee)).div(
-                feeTierDenom
-            )
-        );
-        IERC20(underlyingToken).transfer(recipient, _fee);
-        positions[user].margin -= _fee;
-        collateralLocked -= _fee;
-    }
+    function addMarket() external {}
 
-    function collateralToLpTokenConvertUnit(
-        uint256 potentialSupply,
-        uint256 collateral
-    ) public view returns (uint256 _lpToken) {
-        // delta Collateral / Collateral locked * GD supply (decimals is GD's decimals)
-        _lpToken = (potentialSupply == 0 || collateralLocked == 0)
-            ? collateral
-                .mul(uint(10)**decimals)
-                .div(uint(10)**UNDERLYING_TOKEN_DECIMAL)
-                .div(initialExachangeRate)
-            : collateral.mul(potentialSupply).div(collateralLocked);
-    }
+    function getLeverageFactors(address user)
+        public
+        view
+        returns (
+            uint256 _notionalValue,
+            uint256 _IM,
+            ValueWithSign memory _willReceiveValue
+        )
+    {}
 
-    function lpTokenToCollateralConvertUnit(
-        uint256 potentialSupply,
-        uint256 lpToken
-    ) public view returns (uint256 _collateral) {
-        _collateral = (potentialSupply == 0 || collateralLocked == 0)
-            ? lpToken
-                .mul(uint(10)**UNDERLYING_TOKEN_DECIMAL)
-                .mul(initialExachangeRate)
-                .div(uint(10)**decimals)
-            : lpToken.mul(collateralLocked).div(potentialSupply);
-    }
+    function getLiquidationFactors(address user)
+        public
+        view
+        returns (uint256 _MM, ValueWithSign memory _willReceiveValue)
+    {}
 
-    function mint(address to, uint256 value) external onlyExchanger {
-        _mint(to, value);
-    }
+    function getCollateralValue(address user)
+        public
+        view
+        returns (uint256 _collateralValue)
+    {
+        UserInfo storage userInfo = userInfos[user];
+        uint32 collateralCount = userInfo.collateralCount;
 
-    function burn(address to, uint256 value) external onlyExchanger {
-        _burn(to, value);
-    }
+        address priceOracle = adminContract.getPriceOracle();
+        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
 
-    function setFeeTier(uint80 fee, bool isExchangerCall) external onlyOwner {
-        if (isExchangerCall) {
-            defaultExchangeFeeTier = fee;
-        } else {
-            defaultLpFeeTier = fee;
+        for (uint32 i = 0; i < collateralCount; i++) {
+            uint32 collateralId = userCollateralList[user][i];
+            Collateral storage collateral = collaterals[user][collateralId];
+            if (collateral.qty > 0) {
+                CollateralInfo storage collateralInfo = collateralInfos[
+                    collateralId
+                ];
+                uint256 value = MathUtil.mul(
+                    collateral.qty,
+                    prices[collateralId],
+                    collateralInfo.decimals,
+                    PRICE_DECIMAL,
+                    VALUE_DECIMAL
+                );
+                _collateralValue += (value * collateralInfo.weight) / 10000;
+            }
         }
     }
 
-    function getFeeTier(bool isExchangerCall)
-        external
-        view
-        returns (uint80 _fee, uint80 _feeTierDenom)
-    {
-        _fee = isExchangerCall ? defaultExchangeFeeTier : defaultLpFeeTier;
-        _feeTierDenom = feeTierDenom;
+    function checkMaxLeverage(address user) internal view {
+        (
+            uint256 notionalValue,
+            uint256 IM,
+            ValueWithSign memory willReceiveValue
+        ) = getLeverageFactors(user);
+
+        uint256 collateralValue = getCollateralValue(user);
+
+        checkMaxLeverageRequirement(
+            user,
+            notionalValue,
+            IM,
+            collateralValue,
+            willReceiveValue
+        );
     }
 
-    function getLpPosition(address user)
-        external
-        view
-        returns (
-            uint256 _margin,
-            uint256 _notionalEntryAmount,
-            uint256 _lpPositionSize
-        )
-    {
-        _margin = positions[user].margin;
-        _notionalEntryAmount = positions[user].notionalEntryAmount;
-        _lpPositionSize = positions[user].lpPositionSize;
-    }
+    function checkMaxLeverageRequirement(
+        address user,
+        uint256 notionalValue,
+        uint256 IM,
+        uint256 collateralValue,
+        ValueWithSign memory willReceiveValue
+    ) internal view {
+        ValueWithSign memory accountValue;
+        ValueWithSign storage paidValue = userInfos[user].paidValue;
+        (accountValue.value, accountValue.isPos) = MathUtil.add(
+            willReceiveValue.value,
+            paidValue.value,
+            willReceiveValue.isPos,
+            paidValue.isPos
+        );
 
-    function getLpPnl(address user) external view returns (uint256 _pnl) {
-        uint256 potentialSupply = getPotentialSupply();
-        _pnl = positions[user]
-            .margin
-            .add(
-                lpTokenToCollateralConvertUnit(
-                    potentialSupply,
-                    positions[user].lpPositionSize
-                )
-            )
-            .sub(positions[user].notionalEntryAmount);
+        (accountValue.value, accountValue.isPos) = MathUtil.add(
+            collateralValue,
+            accountValue.value,
+            true,
+            accountValue.isPos
+        );
+
+        require(
+            accountValue.isPos &&
+                accountValue.value * MAX_LEVERAGE > notionalValue &&
+                accountValue.value > IM,
+            "Exceeds Max Leverage"
+        );
     }
 }
+
+// Note
+// paid value 기록하는 방식은 알겠는데... 이미 position manager로부터 pnl을 받는 상황에서 별도 기록이 필요한가
+// position manager이 손해보는 만큼 lp pool이 이득본거 아닌가 -> fee는 어떡할건데?
+// ; price에는 position manager의 pnl이 반영되어 있으니깐...
+
+// fee는 LP pool이 반영하고 있음
