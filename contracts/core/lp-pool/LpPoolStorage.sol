@@ -23,7 +23,8 @@ contract LpPoolStorage {
         bool beenOpened;
     }
 
-    ValueWithSign netPaidValue;
+    ValueWithSign entryValue;
+    uint256 openInterest;
 
     mapping(address => UserInfo) public userInfos;
 

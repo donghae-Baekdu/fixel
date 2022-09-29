@@ -1,14 +1,18 @@
 pragma solidity ^0.8.9;
 
+import {LpPoolStorage} from "./LpPoolStorage.sol";
+import {CommonStorage} from "../common/CommonStorage.sol";
+
+import {IPriceOracle} from "../../interfaces/IPriceOracle.sol";
+import {IPositionManager} from "../../interfaces/IPositionManager.sol";
+import {IAdmin} from "../../interfaces/IAdmin.sol";
+import {ILpPoolTemp} from "../../interfaces/ILpPoolTemp.sol";
+
+import {MathUtil} from "../../libraries/MathUtil.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import {IPriceOracle} from "../../interfaces/IPriceOracle.sol";
-import {IAdmin} from "../../interfaces/IAdmin.sol";
-import {ILpPoolTemp} from "../../interfaces/ILpPoolTemp.sol";
-import {MathUtil} from "../../libraries/MathUtil.sol";
-import {LpPoolStorage} from "./LpPoolStorage.sol";
-import {CommonStorage} from "../common/CommonStorage.sol";
 import "hardhat/console.sol";
 
 contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage, CommonStorage {
@@ -42,6 +46,7 @@ contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage, CommonStorage {
         bool isBuy
     ) internal {
         // TODO get LP Position price
+        uint256 price = getLpPositionPrice();
         // TODO get notional value
         // TODO get paid value delta (reflect fee at notional value)
         // TODO
@@ -148,7 +153,28 @@ contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage, CommonStorage {
         }
     }
 
-    function getLpPositionPrice() external view returns (uint256 _price) {}
+    function getLpPositionPrice() public view returns (uint256 _price) {
+        uint256 lpPoolValue = getLpPoolValue();
+        _price = MathUtil.div(
+            lpPoolValue,
+            openInterest,
+            VALUE_DECIMAL,
+            0,
+            PRICE_DECIMAL
+        );
+    }
+
+    function getLpPoolValue() public view returns (uint256 _value) {
+        address positionManager = adminContract.getPositionManager();
+        (uint256 pnl, bool pnlIsPos) = IPositionManager(positionManager)
+            .getPnl();
+        (_value, ) = MathUtil.add(
+            entryValue.value,
+            pnl,
+            entryValue.isPos,
+            pnlIsPos
+        );
+    }
 
     function liquidate(
         address user,
@@ -260,3 +286,5 @@ contract LpPoolTemp is Ownable, ILpPoolTemp, LpPoolStorage, CommonStorage {
 // paid value 기록하는 방식은 알겠는데... 이미 position manager로부터 pnl을 받는 상황에서 별도 기록이 필요한가
 // position manager이 손해보는 만큼 lp pool이 이득본거 아닌가 -> fee는 어떡할건데?
 // ; price에는 position manager의 pnl이 반영되어 있으니깐...
+
+// fee는 LP pool이 반영하고 있음

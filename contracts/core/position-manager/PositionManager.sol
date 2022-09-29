@@ -157,6 +157,7 @@ contract PositionManager is
                 paidValue.isPos,
                 true
             );
+            // TODO BURN
         } else {
             Collateral storage collateral = collaterals[user][collateralId];
             // add to collateral list
