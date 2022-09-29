@@ -324,10 +324,3 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
         );
     }
 }
-
-// Note
-// paid value 기록하는 방식은 알겠는데... 이미 position manager로부터 pnl을 받는 상황에서 별도 기록이 필요한가
-// position manager이 손해보는 만큼 lp pool이 이득본거 아닌가 -> fee는 어떡할건데?
-// ; price에는 position manager의 pnl이 반영되어 있으니깐...
-
-// fee는 LP pool이 반영하고 있음
