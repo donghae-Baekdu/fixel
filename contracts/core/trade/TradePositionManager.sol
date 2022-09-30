@@ -2,9 +2,9 @@ pragma solidity ^0.8.9;
 
 import {IPriceOracle} from "../../interfaces/IPriceOracle.sol";
 import {IAdmin} from "../../interfaces/IAdmin.sol";
-import {ILpPositionManager} from "../../interfaces/ILpPositionManager.sol";
 import {ITradePositionManager} from "../../interfaces/ITradePositionManager.sol";
 import {MathUtil} from "../../libraries/MathUtil.sol";
+import {IVault} from "../../interfaces/IVault.sol";
 
 import {TradePositionManagerStorage} from "./TradePositionManagerStorage.sol";
 import {CommonStorage} from "../common/CommonStorage.sol";
@@ -235,7 +235,7 @@ contract TradePositionManager is
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
             address vault = adminContract.getVault();
-            IERC20(tokenAddress).transferFrom(vault, user, amount);
+            IVault(vault).withdrawalRequest(tokenAddress, user, amount);
         }
     }
 

@@ -7,6 +7,7 @@ import {IPriceOracle} from "../../interfaces/IPriceOracle.sol";
 import {ITradePositionManager} from "../../interfaces/ITradePositionManager.sol";
 import {IAdmin} from "../../interfaces/IAdmin.sol";
 import {ILpPositionManager} from "../../interfaces/ILpPositionManager.sol";
+import {IVault} from "../../interfaces/IVault.sol";
 
 import {MathUtil} from "../../libraries/MathUtil.sol";
 
@@ -205,7 +206,7 @@ contract LpPositionManager is
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
             address vault = adminContract.getVault();
-            IERC20(tokenAddress).transferFrom(vault, user, amount);
+            IVault(vault).withdrawalRequest(tokenAddress, user, amount);
         }
     }
 
