@@ -12,7 +12,7 @@ interface IAdmin {
 
     event SetStablecoin(address stablecoinAddress);
 
-    function setPositionManager(address _positionManager) external;
+    event SetFeePot(address feePotAddress);
 
     function setTradePositionManager(address positionManager_) external;
 
@@ -29,6 +29,10 @@ interface IAdmin {
     function setVault(address vault_) external;
 
     function getVault() external view returns (address);
+
+    function setFeePot(address feePot_) external;
+
+    function getFeePot() external view returns (address);
 
     function setStablecoin(address _stablecoin) external;
 
