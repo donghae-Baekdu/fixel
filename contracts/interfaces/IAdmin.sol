@@ -29,4 +29,8 @@ interface IAdmin {
     function setVault(address vault_) external;
 
     function getVault() external view returns (address);
+
+    function setStablecoin(address _stablecoin) external;
+
+    function getStablecoin() external view returns (address);
 }
