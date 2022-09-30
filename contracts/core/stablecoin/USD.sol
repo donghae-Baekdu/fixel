@@ -7,9 +7,9 @@ import {IAdmin} from "../../interfaces/IAdmin.sol";
 contract USDC is ERC20 {
     address admin;
 
-    uint8 public decimals = 6;
+    uint8 _decimals = 6;
 
-    constructor(address _admin) public ERC20("USD Token", "USD") {
+    constructor(address _admin) ERC20("USD Token", "USD") {
         admin = _admin;
     }
 
@@ -21,7 +21,12 @@ contract USDC is ERC20 {
         );
         _;
     }
-/*
+
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
+
+    /*
     function changeAdmin(address _newAdmin) public onlyOwner {
         //should this function exist?
     }
@@ -30,7 +35,11 @@ contract USDC is ERC20 {
         _mint(account, amount);
     }
 
-    function burn(address account, uint amount) external checkAuthority {
-        _burn(account,amount);
+    function burn(uint amount) external {
+        _burn(msg.sender, amount);
+    }
+
+    function burnFrom(address account, uint amount) external checkAuthority {
+        _burn(account, amount);
     }
 }
