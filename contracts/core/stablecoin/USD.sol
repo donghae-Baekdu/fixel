@@ -4,19 +4,23 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 //import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IAdmin} from "../../interfaces/IAdmin.sol";
 
-contract USDC is ERC20 {
+contract USD is ERC20 {
     address admin;
+    address public underlyingAsset;
 
     uint8 _decimals = 6;
 
-    constructor(address _admin) ERC20("USD Token", "USD") {
+    constructor(address _admin, address _underlyingAsset)
+        ERC20("USD Token", "USD")
+    {
         admin = _admin;
+        underlyingAsset = _underlyingAsset;
     }
 
     modifier checkAuthority() {
         require(
-            msg.sender == IAdmin(admin).getPositionManager() ||
-                msg.sender == IAdmin(admin).getLpPool(),
+            msg.sender == IAdmin(admin).getTradePositionManager() ||
+                msg.sender == IAdmin(admin).getLpPositionManager() || msg.sender == IAdmin(admin).getVault(),
             "Sender doesn't have authority to mint"
         );
         _;
