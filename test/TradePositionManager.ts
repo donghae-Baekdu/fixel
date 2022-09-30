@@ -13,23 +13,32 @@ async function deployFixture() {
   const adminAddress = AdminContract.address;
   console.log("Admin Contract Deployed");
 
-  const LpPool = await hre.ethers.getContractFactory("LpPool");
-  const LpPoolContract = await LpPool.deploy(
+  const LpPositionManager = await hre.ethers.getContractFactory("LpPositionManager");
+  const LpPositionManagerContract = await LpPositionManager.deploy(
     adminAddress
   );
-  await LpPoolContract.deployed();
-  const lpPoolAddress = LpPoolContract.address;
-  await AdminContract.setLpPool(lpPoolAddress);
-  console.log("LP pool Deployed; address: ", lpPoolAddress);
+  await LpPositionManagerContract.deployed();
+  const lpPositionManagerAddress = LpPositionManagerContract.address;
+  await AdminContract.setLpPositionManager(lpPositionManagerAddress);
+  console.log("LP Position Manager Deployed; address: ", lpPositionManagerAddress);
 
-  const PositionManager = await hre.ethers.getContractFactory("PositionManager");
-  const PositionManagerContract = await PositionManager.deploy(
+  const TradePositionManager = await hre.ethers.getContractFactory("TradePositionManager");
+  const TradePositionManagerContract = await TradePositionManager.deploy(
     AdminContract.address
   );
-  await PositionManagerContract.deployed();
-  const positionManagerAddress = PositionManagerContract.address;
-  await AdminContract.setPositionManager(positionManagerAddress);
-  console.log("Position Manager Deployed; address: ", positionManagerAddress);
+  await TradePositionManagerContract.deployed();
+  const tradePositionManagerAddress = TradePositionManagerContract.address;
+  await AdminContract.setTradePositionManager(tradePositionManagerAddress);
+  console.log("Trade Position Manager Deployed; address: ", tradePositionManagerAddress);
+
+  const Vault = await hre.ethers.getContractFactory("Vault");
+  const VaultContract = await Vault.deploy(
+    AdminContract.address
+  );
+  await VaultContract.deployed();
+  const vaultAddress = TradePositionManagerContract.address;
+  await AdminContract.setVault(vaultAddress);
+  console.log("Vault Deployed; address: ", vaultAddress);
 
   const PriceOracle = await hre.ethers.getContractFactory("PriceOracle");
   const PriceOracleContract = await PriceOracle.deploy({});
@@ -43,13 +52,14 @@ async function deployFixture() {
   await PriceOracleContract.setPriceOracle(0, 1000 * 10 ** 9);
   console.log("Set price oracle");
 
-
   // TODO add market
 
 
   // TODO add collateral
 
+
   // TODO set fee tier
+
 
 
   // TODO set account; impersonate
@@ -66,23 +76,23 @@ async function deployFixture() {
 
   const whaleSigner = await hre.ethers.getSigner("0x1714400FF23dB4aF24F9fd64e7039e6597f18C2b");
 
-  const usdcContract = await hre.ethers.getContractAt("IERC20", "USDC ADDRESS........");
+  const usdcContract = await hre.ethers.getContractAt("IERC20", "");
 
 
   await USDC.connect(owner).approve(
-    LpPoolContract.address,
+    LpPositionManagerContract.address,
     hre.ethers.utils.parseUnits("100000000", 6)
   );
   await USDC.connect(addr1).approve(
-    LpPoolContract.address,
+    LpPositionManagerContract.address,
     hre.ethers.utils.parseUnits("100000000", 6)
   );
   await USDC.connect(addr2).approve(
-    LpPoolContract.address,
+    LpPositionManagerContract.address,
     hre.ethers.utils.parseUnits("100000000", 6)
   );
   await USDC.connect(addr3).approve(
-    LpPoolContract.address,
+    LpPositionManagerContract.address,
     hre.ethers.utils.parseUnits("100000000", 6)
   );
 
@@ -90,8 +100,8 @@ async function deployFixture() {
     USDC,
     PriceOracleContract,
     AdminContract,
-    LpPoolContract,
-    PositionManagerContract,
+    LpPoolContract: LpPositionManagerContract,
+    PositionManagerContract: TradePositionManagerContract,
     owner,
     addr1,
     addr2,
