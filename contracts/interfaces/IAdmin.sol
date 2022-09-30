@@ -10,6 +10,10 @@ interface IAdmin {
 
     event SetVault(address vault);
 
+    event SetStablecoin(address stablecoinAddress);
+
+    function setPositionManager(address _positionManager) external;
+
     function setTradePositionManager(address positionManager_) external;
 
     function getTradePositionManager() external view returns (address);

@@ -14,6 +14,7 @@ contract Admin is Ownable, IAdmin {
     address public tradePositionManager;
     address public priceOracle;
     address public vault;
+    address public stablecoin;
 
     function setTradePositionManager(address tradePositionManager_)
         external
@@ -55,5 +56,14 @@ contract Admin is Ownable, IAdmin {
 
     function getVault() external view returns (address) {
         return vault;
+    }
+
+    function setStablecoin(address _stablecoin) external onlyOwner {
+        stablecoin = _stablecoin;
+        emit SetStablecoin(_stablecoin);
+    }
+
+    function getStablecoin() external view returns (address) {
+        return address(stablecoin);
     }
 }
