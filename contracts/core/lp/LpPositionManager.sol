@@ -8,6 +8,7 @@ import {ITradePositionManager} from "../../interfaces/ITradePositionManager.sol"
 import {IAdmin} from "../../interfaces/IAdmin.sol";
 import {ILpPositionManager} from "../../interfaces/ILpPositionManager.sol";
 import {IVault} from "../../interfaces/IVault.sol";
+import {IUSD} from "../../interfaces/IUSD.sol";
 
 import {MathUtil} from "../../libraries/MathUtil.sol";
 
@@ -106,14 +107,16 @@ contract LpPositionManager is
         );
     }
 
+    //TODO receive token from msg.sender, not user
     function addCollateral(
         address user,
         uint32 collateralId,
         uint256 amount
     ) external {
-        // transfer token
+        require(user == msg.sender, "User and Sender should be same");
+
         if (collateralId == 0) {
-            // TODO burn @oliver
+            IUSD(adminContract.getStablecoin()).burnFrom(user, amount);
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
             address vault = adminContract.getVault();
@@ -148,11 +151,14 @@ contract LpPositionManager is
         }
     }
 
+    //TODO remove collateral from msg.sender's position, and return collateral to user
     function removeCollateral(
         address user,
         uint32 collateralId,
         uint256 amount
     ) external {
+        require(user == msg.sender, "User and Sender should be same");
+
         Position storage position = positions[user];
         uint256 price = getLpPositionPrice();
         uint256 notionalValue = MathUtil.mul(
@@ -202,6 +208,7 @@ contract LpPositionManager is
 
         // transfer token
         if (collateralId == 0) {
+            IUSD(adminContract.getStablecoin()).mint(user, amount);
             // TODO mint stable coin @oliver
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
