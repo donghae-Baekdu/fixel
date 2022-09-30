@@ -5,6 +5,7 @@ import {IAdmin} from "../../interfaces/IAdmin.sol";
 import {ITradePositionManager} from "../../interfaces/ITradePositionManager.sol";
 import {MathUtil} from "../../libraries/MathUtil.sol";
 import {IVault} from "../../interfaces/IVault.sol";
+import {IUSD} from "../../interfaces/IUSD.sol";
 
 import {TradePositionManagerStorage} from "./TradePositionManagerStorage.sol";
 import {CommonStorage} from "../common/CommonStorage.sol";
@@ -134,6 +135,7 @@ contract TradePositionManager is
         );
     }
 
+    //TODO receive token from msg.sender, not user
     function addCollateral(
         address user,
         uint32 collateralId,
@@ -141,7 +143,7 @@ contract TradePositionManager is
     ) external {
         // transfer token
         if (collateralId == 0) {
-            // TODO burn @oliver
+            IUSD(adminContract.getStablecoin()).burnFrom(user, amount);
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
             address vault = adminContract.getVault();
@@ -176,6 +178,7 @@ contract TradePositionManager is
         }
     }
 
+    //TODO remove collateral from msg.sender's position, and return collateral to user
     function removeCollateral(
         address user,
         uint32 collateralId,
@@ -231,7 +234,7 @@ contract TradePositionManager is
 
         // transfer token
         if (collateralId == 0) {
-            // TODO mint stable coin @oliver
+            IUSD(adminContract.getStablecoin()).mint(user, amount);
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
             address vault = adminContract.getVault();
