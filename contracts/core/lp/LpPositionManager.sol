@@ -209,7 +209,6 @@ contract LpPositionManager is
         // transfer token
         if (collateralId == 0) {
             IUSD(adminContract.getStablecoin()).mint(user, amount);
-            // TODO mint stable coin @oliver
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
             address vault = adminContract.getVault();
