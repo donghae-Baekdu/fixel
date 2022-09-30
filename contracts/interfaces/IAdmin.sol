@@ -8,15 +8,21 @@ interface IAdmin {
 
     event SetPriceOracle(address priceOracleAddress);
 
-    function setPositionManager(address _positionManager) external;
+    event SetVault(address vault);
 
-    function getPositionManager() external view returns (address);
+    function setTradePositionManager(address positionManager_) external;
 
-    function getLpPool() external view returns (address);
+    function getTradePositionManager() external view returns (address);
 
-    function setLpPool(address _lpPoolAddress) external;
+    function setLpPositionManager(address lpPoolAddress_) external;
+
+    function getLpPositionManager() external view returns (address);
+
+    function setPriceOracle(address priceOracleAddress_) external;
 
     function getPriceOracle() external view returns (address);
 
-    function setPriceOracle(address _priceOracleAddress) external;
+    function setVault(address vault_) external;
+
+    function getVault() external view returns (address);
 }

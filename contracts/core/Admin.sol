@@ -2,9 +2,6 @@
 pragma solidity ^0.8.9;
 
 import {IAdmin} from "../interfaces/IAdmin.sol";
-import {ILpPool} from "../interfaces/ILpPool.sol";
-import {IPositionManager} from "../interfaces/IPositionManager.sol";
-import {IPriceOracle} from "../interfaces/IPriceOracle.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 // change name into factory
@@ -13,34 +10,50 @@ contract Admin is Ownable, IAdmin {
     uint80 defaultExchangeFeeTier; // bp
     uint80 defaultLpFeeTier; // bp
 
-    ILpPool public lpPool;
-    IPositionManager public positionManager;
-    IPriceOracle public priceOracle;
+    address public lpPositionManager;
+    address public tradePositionManager;
+    address public priceOracle;
+    address public vault;
 
-    function setPositionManager(address _positionManager) external onlyOwner {
-        positionManager = IPositionManager(_positionManager);
-        emit SetPositionManager(_positionManager);
+    function setTradePositionManager(address tradePositionManager_)
+        external
+        onlyOwner
+    {
+        tradePositionManager = tradePositionManager_;
+        emit SetPositionManager(tradePositionManager_);
     }
 
-    function getPositionManager() external view returns (address) {
-        return address(positionManager);
+    function getTradePositionManager() external view returns (address) {
+        return address(tradePositionManager);
     }
 
-    function getLpPool() external view returns (address) {
-        return address(lpPool);
+    function setLpPositionManager(address lpPositionManager_)
+        external
+        onlyOwner
+    {
+        lpPositionManager = lpPositionManager_;
+        emit SetLpPool(lpPositionManager_);
     }
 
-    function setLpPool(address _lpPoolAddress) external onlyOwner {
-        lpPool = ILpPool(_lpPoolAddress);
-        emit SetLpPool(_lpPoolAddress);
+    function getLpPositionManager() external view returns (address) {
+        return lpPositionManager;
     }
 
-    function setPriceOracle(address _priceOracleAddress) external onlyOwner {
-        priceOracle = IPriceOracle(_priceOracleAddress);
-        emit SetPriceOracle(_priceOracleAddress);
+    function setPriceOracle(address priceOracleAddress_) external onlyOwner {
+        priceOracle = priceOracleAddress_;
+        emit SetPriceOracle(priceOracleAddress_);
     }
 
     function getPriceOracle() external view returns (address) {
-        return address(priceOracle);
+        return priceOracle;
+    }
+
+    function setVault(address vault_) external onlyOwner {
+        vault = vault_;
+        emit SetVault(vault_);
+    }
+
+    function getVault() external view returns (address) {
+        return vault;
     }
 }

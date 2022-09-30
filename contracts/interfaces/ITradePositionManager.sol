@@ -1,6 +1,6 @@
 pragma solidity ^0.8.9;
 
-interface IPositionManager {
+interface ITradePositionManager {
     function openPosition(
         address user,
         uint32 marketId,

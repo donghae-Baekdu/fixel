@@ -2,11 +2,11 @@ pragma solidity ^0.8.9;
 
 import {IPriceOracle} from "../../interfaces/IPriceOracle.sol";
 import {IAdmin} from "../../interfaces/IAdmin.sol";
-import {ILpPool} from "../../interfaces/ILpPool.sol";
-import {IPositionManager} from "../../interfaces/IPositionManager.sol";
+import {ILpPositionManager} from "../../interfaces/ILpPositionManager.sol";
+import {ITradePositionManager} from "../../interfaces/ITradePositionManager.sol";
 import {MathUtil} from "../../libraries/MathUtil.sol";
 
-import {PositionManagerStorage} from "./PositionManagerStorage.sol";
+import {TradePositionManagerStorage} from "./TradePositionManagerStorage.sol";
 import {CommonStorage} from "../common/CommonStorage.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -14,10 +14,10 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "hardhat/console.sol";
 
-contract PositionManager is
+contract TradePositionManager is
     Ownable,
-    IPositionManager,
-    PositionManagerStorage,
+    ITradePositionManager,
+    TradePositionManagerStorage,
     CommonStorage
 {
     using SafeMath for uint256;
@@ -144,8 +144,8 @@ contract PositionManager is
             // TODO burn @oliver
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
-            address lpPool = adminContract.getLpPool();
-            IERC20(tokenAddress).transferFrom(user, lpPool, amount);
+            address vault = adminContract.getVault();
+            IERC20(tokenAddress).transferFrom(user, vault, amount);
         }
 
         if (collateralId == 0) {
@@ -234,8 +234,8 @@ contract PositionManager is
             // TODO mint stable coin @oliver
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
-            address lpPool = adminContract.getLpPool();
-            IERC20(tokenAddress).transferFrom(lpPool, user, amount);
+            address vault = adminContract.getVault();
+            IERC20(tokenAddress).transferFrom(vault, user, amount);
         }
     }
 

@@ -6,26 +6,35 @@ import "hardhat/console.sol";
 
 contract PriceOracle is Ownable {
     mapping(uint80 => uint256) public prices;
-    mapping(uint80 => string) public markets;
+    mapping(uint80 => bool) public activated;
+
     uint80 marketCount;
+    uint256 public PRICE_DECIMAL = uint(9);
+    event SetPrice(uint80 oracleId, uint256 prices);
+    event AddFeed(uint80 oracleId, string name);
 
-    uint256 public PRICE_DECIMAL = uint(6);
-    event SetPrice(uint80 poolId, uint256 prices);
-    event AddMarket(uint80 poolId, string name);
-
-    constructor() {
-        marketCount = 0;
+    modifier activatedOracle(uint80 oracleId) {
+        require(activated[oracleId], "Not activated feed");
+        _;
     }
 
-    function addMarket(string memory name) public onlyOwner {
-        markets[marketCount] = name;
-        emit AddMarket(marketCount, name);
+    function addFeed(string memory name) public onlyOwner {
+        emit AddFeed(marketCount, name);
         marketCount = marketCount + 1;
     }
 
-    function getPrice(uint80 marketId) external view returns (uint256) {
-        require(marketId < marketCount, "Invalid Pool Id");
-        return prices[marketId];
+    function activateFeed(uint80 oracleId) public onlyOwner {
+        activated[oracleId] = true;
+    }
+
+    function getPrice(uint80 oracleId)
+        external
+        view
+        activatedOracle(oracleId)
+        returns (uint256)
+    {
+        require(oracleId < marketCount, "Invalid Pool Id");
+        return prices[oracleId];
     }
 
     function getPrices() external view returns (uint256[] memory) {
@@ -36,8 +45,8 @@ contract PriceOracle is Ownable {
         return _prices;
     }
 
-    function setPriceOracle(uint80 poolId, uint256 price) external onlyOwner {
-        prices[poolId] = price;
-        emit SetPrice(poolId, price);
+    function setPriceOracle(uint80 oracleId, uint256 price) external onlyOwner {
+        prices[oracleId] = price;
+        emit SetPrice(oracleId, price);
     }
 }

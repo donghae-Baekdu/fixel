@@ -1,12 +1,12 @@
 pragma solidity ^0.8.9;
 
-import {LpPoolStorage} from "./LpPoolStorage.sol";
+import {LpPositionManagerStorage} from "./LpPositionManagerStorage.sol";
 import {CommonStorage} from "../common/CommonStorage.sol";
 
 import {IPriceOracle} from "../../interfaces/IPriceOracle.sol";
-import {IPositionManager} from "../../interfaces/IPositionManager.sol";
+import {ITradePositionManager} from "../../interfaces/ITradePositionManager.sol";
 import {IAdmin} from "../../interfaces/IAdmin.sol";
-import {ILpPool} from "../../interfaces/ILpPool.sol";
+import {ILpPositionManager} from "../../interfaces/ILpPositionManager.sol";
 
 import {MathUtil} from "../../libraries/MathUtil.sol";
 
@@ -15,7 +15,12 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "hardhat/console.sol";
 
-contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
+contract LpPositionManager is
+    Ownable,
+    ILpPositionManager,
+    LpPositionManagerStorage,
+    CommonStorage
+{
     using SafeMath for uint256;
 
     constructor(address adminContract_) CommonStorage(adminContract_, 10, 25) {
@@ -110,8 +115,8 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
             // TODO burn @oliver
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
-            address lpPool = adminContract.getLpPool();
-            IERC20(tokenAddress).transferFrom(user, lpPool, amount);
+            address vault = adminContract.getVault();
+            IERC20(tokenAddress).transferFrom(user, vault, amount);
         }
 
         if (collateralId == 0) {
@@ -199,8 +204,8 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
             // TODO mint stable coin @oliver
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
-            address lpPool = adminContract.getLpPool();
-            IERC20(tokenAddress).transferFrom(lpPool, user, amount);
+            address vault = adminContract.getVault();
+            IERC20(tokenAddress).transferFrom(vault, user, amount);
         }
     }
 
@@ -216,8 +221,8 @@ contract LpPool is Ownable, ILpPool, LpPoolStorage, CommonStorage {
     }
 
     function getLpPoolValue() public view returns (uint256 _value) {
-        address positionManager = adminContract.getPositionManager();
-        (uint256 pnl, bool pnlIsPos) = IPositionManager(positionManager)
+        address positionManager = adminContract.getTradePositionManager();
+        (uint256 pnl, bool pnlIsPos) = ITradePositionManager(positionManager)
             .getPnl();
         (_value, ) = MathUtil.add(
             entryValue.value,

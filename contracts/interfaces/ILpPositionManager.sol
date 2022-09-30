@@ -1,6 +1,6 @@
 pragma solidity ^0.8.9;
 
-interface ILpPool {
+interface ILpPositionManager {
     function buyPosition(address user, uint256 amount) external;
 
     function sellPosition(address user, uint256 amount) external;

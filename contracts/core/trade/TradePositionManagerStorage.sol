@@ -1,6 +1,6 @@
 import {IAdmin} from "../../interfaces/IAdmin.sol";
 
-contract PositionManagerStorage {
+contract TradePositionManagerStorage {
     struct ValueWithSign {
         uint256 value;
         bool isPos;
