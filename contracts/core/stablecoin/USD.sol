@@ -39,11 +39,7 @@ contract USD is ERC20 {
         _mint(account, amount);
     }
 
-    function burn(uint amount) external {
-        _burn(msg.sender, amount);
-    }
-
-    function burnFrom(address account, uint amount) external checkAuthority {
+    function burn(address account, uint amount) external checkAuthority {
         _burn(account, amount);
     }
 }
