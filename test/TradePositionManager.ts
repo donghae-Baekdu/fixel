@@ -13,28 +13,36 @@ async function deployFixture() {
   const adminAddress = AdminContract.address;
   console.log("Admin Contract Deployed");
 
-  const LpPositionManager = await hre.ethers.getContractFactory("LpPositionManager");
+  const LpPositionManager = await hre.ethers.getContractFactory(
+    "LpPositionManager"
+  );
   const LpPositionManagerContract = await LpPositionManager.deploy(
     adminAddress
   );
   await LpPositionManagerContract.deployed();
   const lpPositionManagerAddress = LpPositionManagerContract.address;
   await AdminContract.setLpPositionManager(lpPositionManagerAddress);
-  console.log("LP Position Manager Deployed; address: ", lpPositionManagerAddress);
+  console.log(
+    "LP Position Manager Deployed; address: ",
+    lpPositionManagerAddress
+  );
 
-  const TradePositionManager = await hre.ethers.getContractFactory("TradePositionManager");
+  const TradePositionManager = await hre.ethers.getContractFactory(
+    "TradePositionManager"
+  );
   const TradePositionManagerContract = await TradePositionManager.deploy(
     AdminContract.address
   );
   await TradePositionManagerContract.deployed();
   const tradePositionManagerAddress = TradePositionManagerContract.address;
   await AdminContract.setTradePositionManager(tradePositionManagerAddress);
-  console.log("Trade Position Manager Deployed; address: ", tradePositionManagerAddress);
+  console.log(
+    "Trade Position Manager Deployed; address: ",
+    tradePositionManagerAddress
+  );
 
   const Vault = await hre.ethers.getContractFactory("Vault");
-  const VaultContract = await Vault.deploy(
-    AdminContract.address
-  );
+  const VaultContract = await Vault.deploy(AdminContract.address);
   await VaultContract.deployed();
   const vaultAddress = TradePositionManagerContract.address;
   await AdminContract.setVault(vaultAddress);
@@ -54,13 +62,9 @@ async function deployFixture() {
 
   // TODO add market
 
-
   // TODO add collateral
 
-
   // TODO set fee tier
-
-
 
   // TODO set account; impersonate
   // 0x1714400FF23dB4aF24F9fd64e7039e6597f18C2b; Arbitrum whale
@@ -74,10 +78,24 @@ async function deployFixture() {
     params: ["0x1714400FF23dB4aF24F9fd64e7039e6597f18C2b"],
   });
 
-  const whaleSigner = await hre.ethers.getSigner("0x1714400FF23dB4aF24F9fd64e7039e6597f18C2b");
+  const whaleSigner = await hre.ethers.getSigner(
+    "0x1714400FF23dB4aF24F9fd64e7039e6597f18C2b"
+  );
 
-  const usdcContract = await hre.ethers.getContractAt("IERC20", "");
+  const usdcContract = await hre.ethers.getContractAt(
+    "IERC20",
+    "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8"
+  );
 
+  const wethContract = await hre.ethers.getContractAt(
+    "IERC20",
+    "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
+  );
+
+  const wbtcContract = await hre.ethers.getContractAt(
+    "IERC20",
+    "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f"
+  );
 
   await USDC.connect(owner).approve(
     LpPositionManagerContract.address,
@@ -115,6 +133,4 @@ describe("Position Controller", async function () {
   it("load fixture", async () => {
     fixture = await deployFixture();
   });
-
-
 });

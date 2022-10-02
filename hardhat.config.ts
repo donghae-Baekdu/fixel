@@ -3,7 +3,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-deploy";
 import "@nomiclabs/hardhat-ethers";
 
-require('dotenv').config();
+require("dotenv").config();
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -16,10 +16,27 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-    hardhat: {
+    /*hardhat: {
       forking: {
         url: `${process.env.HARDHAT_NODE_URL}`,
       },
+      allowUnlimitedContractSize: true,
+    },*/
+    hardhat: {
+      chainId: 137,
+      forking: {
+        url: `${process.env.ARBITRUM_NODE_URL}`,
+      },
+      accounts: [
+        {
+          privateKey: process.env.ACCOUNT_ZERO_PRIVATE_KEY!,
+          balance: "1000000000000000000000",
+        },
+        {
+          privateKey: process.env.ACCOUNT_ONE_PRIVATE_KEY!,
+          balance: "1000000000000000000000",
+        },
+      ],
       allowUnlimitedContractSize: true,
     },
     mumbai: {
@@ -32,7 +49,7 @@ const config: HardhatUserConfig = {
       accounts: [process.env.DEPLOYER_PRIVATE_KEY!],
       allowUnlimitedContractSize: true,
     },
-  }
+  },
 };
 
 export default config;
