@@ -4,15 +4,19 @@
     "description": "# Deploy",
     "main": "index.js",
     "directories": {
-      "test": "test"
+        "test": "test"
     },
     "devDependencies": {
-      "@nomicfoundation/hardhat-toolbox": "^1.0.2",
-      "@openzeppelin/contracts": "^4.7.3",
-      "hardhat": "^2.10.1"
+        "@nomicfoundation/hardhat-toolbox": "^1.0.2",
+        "@openzeppelin/contracts": "^4.7.3",
+        "hardhat": "npm:@gzeoneth/hardhat@^2.10.2-gzeon-e972f1dda"
     },
     "dependencies": {
-      "dotenv": "^16.0.1",
-      "hardhat-deploy": "^0.11.12"
+        "dotenv": "^16.0.1",
+        "hardhat-deploy": "^0.11.12",
+        "patch-package": "^6.4.7"
+    },
+    "scripts": {
+        "postinstall": "patch-package"
     }
-  }
+}

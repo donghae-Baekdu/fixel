@@ -16,16 +16,11 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-    /*hardhat: {
-      forking: {
-        url: `${process.env.HARDHAT_NODE_URL}`,
-      },
-      allowUnlimitedContractSize: true,
-    },*/
     hardhat: {
-      chainId: 137,
+      chainId: 42161,
       forking: {
         url: `${process.env.ARBITRUM_NODE_URL}`,
+        ignoreUnknownTxType: true,
       },
       accounts: [
         {
