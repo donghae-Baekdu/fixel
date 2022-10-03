@@ -4,13 +4,18 @@ import { ActionType } from "hardhat/types";
 const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 const { expect } = require("chai");
 
-describe("Position Controller", async function () {
+describe("TradePositionManager", async function () {
   let fixture: any;
   async function deployFixture() {
-    const [owner, addr1] = await hre.ethers.getSigners();
+    const [owner, addr1, addr2] = await hre.ethers.getSigners();
 
     console.log(owner.address);
     console.log(addr1.address);
+    console.log(addr2.address);
+
+    const mathUtilFactory = await hre.ethers.getContractFactory("MathUtil");
+    const MathUtilContract = await mathUtilFactory.deploy();
+    await MathUtilContract.deployed();
 
     const Admin = await hre.ethers.getContractFactory("Admin");
     const AdminContract = await Admin.deploy();
@@ -19,7 +24,8 @@ describe("Position Controller", async function () {
     console.log("Admin Contract Deployed");
 
     const LpPositionManager = await hre.ethers.getContractFactory(
-      "LpPositionManager"
+      "LpPositionManager",
+      { libraries: { MathUtil: MathUtilContract.address } }
     );
     const LpPositionManagerContract = await LpPositionManager.deploy(
       adminAddress
@@ -33,7 +39,8 @@ describe("Position Controller", async function () {
     );
 
     const TradePositionManager = await hre.ethers.getContractFactory(
-      "TradePositionManager"
+      "TradePositionManager",
+      { libraries: { MathUtil: MathUtilContract.address } }
     );
     const TradePositionManagerContract = await TradePositionManager.deploy(
       AdminContract.address
@@ -80,7 +87,7 @@ describe("Position Controller", async function () {
 
     await hre.network.provider.request({
       method: "hardhat_impersonateAccount",
-      params: ["0x1714400FF23dB4aF24F9fd64e7039e6597f18C2b"],
+      params: ["0x1714400FF23dB4aF24F9fd64e7039e6597f18C2b"], // whale address
     });
 
     const whaleSigner = await hre.ethers.getSigner(

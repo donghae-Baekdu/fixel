@@ -24,11 +24,15 @@ const config: HardhatUserConfig = {
       },
       accounts: [
         {
-          privateKey: process.env.ACCOUNT_ZERO_PRIVATE_KEY!,
+          privateKey: process.env.DEPLOYER_PRIVATE_KEY!,
           balance: "1000000000000000000000",
         },
         {
           privateKey: process.env.ACCOUNT_ONE_PRIVATE_KEY!,
+          balance: "1000000000000000000000",
+        },
+        {
+          privateKey: process.env.ACCOUNT_TWO_PRIVATE_KEY!,
           balance: "1000000000000000000000",
         },
       ],

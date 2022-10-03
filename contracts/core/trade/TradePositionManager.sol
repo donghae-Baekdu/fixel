@@ -441,4 +441,16 @@ contract TradePositionManager is
     ) external {
         // TODO maximum 50% at once if exceeds certain qty
     }
+
+    function getBalance(address user, uint32 collateralId)
+        external
+        view
+        returns (uint256 _value, bool _isPos)
+    {
+        if (collateralId == 0) {
+            // TODO get usd balance
+        } else {
+            // TODO get collateral qty
+        }
+    }
 }

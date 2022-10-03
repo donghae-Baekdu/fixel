@@ -38,4 +38,9 @@ interface ITradePositionManager {
         returns (uint256 _collateralValue);
 
     function getPnl() external view returns (uint256 _pnlValue, bool _pnlIsPos);
+
+    function getBalance(address user, uint32 collateralId)
+        external
+        view
+        returns (uint256 _value, bool _isPos);
 }
