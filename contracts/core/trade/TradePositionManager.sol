@@ -441,7 +441,6 @@ contract TradePositionManager is
         returns (uint256 _value, bool _isPos)
     {
         if (collateralId == 0) {
-            // TODO get usd balance
             ValueWithSign storage paidValue = userInfos[user].paidValue;
             (, , , ValueWithSign memory willReceiveValue) = getEssentialFactors(
                 user,
@@ -456,9 +455,19 @@ contract TradePositionManager is
                 willReceiveValue.isPos,
                 paidValue.isPos
             );
-            // TODO _value decimal change
+            // decimal convert
+            CollateralInfo storage collateralInfo = collateralInfos[
+                collateralId
+            ];
+            _value = MathUtil.convertDecimals(
+                _value,
+                VALUE_DECIMAL,
+                collateralInfo.decimals
+            );
         } else {
-            // TODO get collateral qty
+            // get collateral qty
+            Collateral storage collateral = collaterals[user][collateralId];
+            (_value, _isPos) = (collateral.qty, true);
         }
     }
 }
