@@ -438,9 +438,7 @@ contract TradePositionManager is
                 paidValue.isPos
             );
             // decimal convert
-            CollateralInfo storage collateralInfo = collateralInfos[
-                collateralId
-            ];
+            CollateralInfo storage collateralInfo = collateralInfos[0];
             _value = MathUtil.convertDecimals(
                 _value,
                 VALUE_DECIMAL,

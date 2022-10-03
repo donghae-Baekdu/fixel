@@ -310,8 +310,33 @@ contract LpPositionManager is
     {
         if (collateralId == 0) {
             // TODO get usd balance
+            ValueWithSign storage paidValue = userInfos[user].paidValue;
+            Position storage position = positions[user];
+            uint256 willReceiveValue = MathUtil.mul(
+                getLpPositionPrice(),
+                position.qty,
+                PRICE_DECIMAL,
+                POSITION_DECIMAL,
+                VALUE_DECIMAL
+            );
+
+            (_value, _isPos) = MathUtil.add(
+                willReceiveValue,
+                paidValue.value,
+                true,
+                paidValue.isPos
+            );
+            // decimal convert
+            CollateralInfo storage collateralInfo = collateralInfos[0];
+            _value = MathUtil.convertDecimals(
+                _value,
+                VALUE_DECIMAL,
+                collateralInfo.decimals
+            );
         } else {
-            // TODO get collateral qty
+            // get collateral qty
+            Collateral storage collateral = collaterals[user][collateralId];
+            (_value, _isPos) = (collateral.qty, true);
         }
     }
 }
