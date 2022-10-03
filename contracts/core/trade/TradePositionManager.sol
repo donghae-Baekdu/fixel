@@ -187,8 +187,9 @@ contract TradePositionManager is
         (
             uint256 notionalValue,
             uint256 IM,
+            ,
             ValueWithSign memory willReceiveValue
-        ) = getLeverageFactors(user);
+        ) = getEssentialFactors(user, true, true, false, true);
 
         if (collateralId == 0) {
             ValueWithSign storage paidValue = userInfos[user].paidValue;
@@ -278,12 +279,19 @@ contract TradePositionManager is
         }
     }
 
-    function getLeverageFactors(address user)
+    function getEssentialFactors(
+        address user,
+        bool getNV,
+        bool getIM,
+        bool getMM,
+        bool getWRV
+    )
         public
         view
         returns (
             uint256 _notionalValue,
             uint256 _IM,
+            uint256 _MM,
             ValueWithSign memory _willReceiveValue
         )
     {
@@ -305,56 +313,33 @@ contract TradePositionManager is
                     PRICE_DECIMAL,
                     VALUE_DECIMAL
                 );
-                _notionalValue += notionalValue;
+                if (getNV) {
+                    _notionalValue += notionalValue;
+                }
                 // add IM
-                _IM += (notionalValue * market.initialMarginFraction) / 10000;
-                // add will receive value
-                (_willReceiveValue.value, _willReceiveValue.isPos) = MathUtil
-                    .add(
-                        _willReceiveValue.value,
-                        notionalValue,
-                        _willReceiveValue.isPos,
-                        position.isLong
-                    );
-            }
-        }
-    }
-
-    function getLiquidationFactors(address user)
-        public
-        view
-        returns (uint256 _MM, ValueWithSign memory _willReceiveValue)
-    {
-        uint32 positionCount = userInfos[user].positionCount;
-
-        address priceOracle = adminContract.getPriceOracle();
-        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
-
-        for (uint32 i = 0; i < positionCount; i++) {
-            uint32 marketId = userPositionList[user][i];
-            Position storage position = positions[user][marketId];
-            if (position.isOpened) {
-                uint256 price = prices[marketId];
-                Market storage market = markets[marketId];
-                uint256 notionalValue = MathUtil.mul(
-                    position.qty.value,
-                    price,
-                    market.decimals,
-                    PRICE_DECIMAL,
-                    VALUE_DECIMAL
-                );
+                if (getIM) {
+                    _IM +=
+                        (notionalValue * market.initialMarginFraction) /
+                        10000;
+                }
                 // add MM
-                _MM +=
-                    (notionalValue * market.maintenanceMarginFraction) /
-                    10000;
+                if (getMM) {
+                    _MM +=
+                        (notionalValue * market.maintenanceMarginFraction) /
+                        10000;
+                }
                 // add will receive value
-                (_willReceiveValue.value, _willReceiveValue.isPos) = MathUtil
-                    .add(
+                if (getWRV) {
+                    (
+                        _willReceiveValue.value,
+                        _willReceiveValue.isPos
+                    ) = MathUtil.add(
                         _willReceiveValue.value,
                         notionalValue,
                         _willReceiveValue.isPos,
                         position.isLong
                     );
+                }
             }
         }
     }
@@ -392,8 +377,9 @@ contract TradePositionManager is
         (
             uint256 notionalValue,
             uint256 IM,
+            ,
             ValueWithSign memory willReceiveValue
-        ) = getLeverageFactors(user);
+        ) = getEssentialFactors(user, true, true, false, true);
 
         uint256 collateralValue = getCollateralValue(user);
 
@@ -456,6 +442,21 @@ contract TradePositionManager is
     {
         if (collateralId == 0) {
             // TODO get usd balance
+            ValueWithSign storage paidValue = userInfos[user].paidValue;
+            (, , , ValueWithSign memory willReceiveValue) = getEssentialFactors(
+                user,
+                false,
+                false,
+                false,
+                true
+            );
+            (_value, _isPos) = MathUtil.add(
+                willReceiveValue.value,
+                paidValue.value,
+                willReceiveValue.isPos,
+                paidValue.isPos
+            );
+            // TODO _value decimal change
         } else {
             // TODO get collateral qty
         }
