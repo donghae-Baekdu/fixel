@@ -47,7 +47,7 @@ contract Vault is IVault {
             "Insufficient Vault Balance"
         );
 
-        stablecoin.burnFrom(msg.sender, amount);
+        stablecoin.burn(msg.sender, amount);
 
         uint redeemAmount = (amount * (1e4 - 5)) / 1e4;
         uint fee = amount - redeemAmount;
