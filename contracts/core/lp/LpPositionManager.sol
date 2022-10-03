@@ -63,6 +63,10 @@ contract LpPositionManager is
             VALUE_DECIMAL
         );
         uint256 fee = (paidValueDelta * getFeeTier(user)) / 10000;
+        uint256 feeToProtocol = fee -
+            (fee * (10000 - PROTOCOL_FEE_PROPORTION)) /
+            10000;
+
         paidValueDelta = isBuy ? paidValueDelta + fee : paidValueDelta - fee;
 
         ValueWithSign storage paidValue = userInfos[user].paidValue;
@@ -101,9 +105,20 @@ contract LpPositionManager is
 
         (entryValue.value, entryValue.isPos) = MathUtil.add(
             entryValue.value,
-            paidValueDelta,
+            isBuy
+                ? paidValueDelta - feeToProtocol
+                : paidValueDelta + feeToProtocol,
             entryValue.isPos,
             isBuy
+        );
+        // cumulatve protocol fee
+        address vault = adminContract.getVault();
+        IVault(vault).cumulateProtocolFee(
+            MathUtil.convertDecimals(
+                feeToProtocol,
+                VALUE_DECIMAL,
+                collateralInfos[0].decimals
+            )
         );
     }
 
@@ -309,7 +324,7 @@ contract LpPositionManager is
         returns (uint256 _value, bool _isPos)
     {
         if (collateralId == 0) {
-            // TODO get usd balance
+            // get usd balance
             ValueWithSign storage paidValue = userInfos[user].paidValue;
             Position storage position = positions[user];
             uint256 willReceiveValue = MathUtil.mul(
