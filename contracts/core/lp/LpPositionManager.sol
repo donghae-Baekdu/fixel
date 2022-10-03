@@ -327,11 +327,10 @@ contract LpPositionManager is
                 paidValue.isPos
             );
             // decimal convert
-            CollateralInfo storage collateralInfo = collateralInfos[0];
             _value = MathUtil.convertDecimals(
                 _value,
                 VALUE_DECIMAL,
-                collateralInfo.decimals
+                collateralInfos[0].decimals
             );
         } else {
             // get collateral qty

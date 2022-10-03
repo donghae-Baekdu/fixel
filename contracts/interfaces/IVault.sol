@@ -7,4 +7,6 @@ interface IVault {
         address recipient,
         uint256 amount
     ) external;
+
+    function cumulateProtocolFee(uint256 amount) external;
 }

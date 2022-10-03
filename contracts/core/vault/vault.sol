@@ -11,6 +11,7 @@ contract Vault is IVault {
     using SafeMath for uint256;
     uint redeemFee = 5; //bp
     address admin;
+    uint256 cumulatedFee;
 
     constructor(address admin_) {
         admin = admin_;
@@ -58,5 +59,9 @@ contract Vault is IVault {
 
     function wrap() external {
         // TODO wrap USDC to xUSD
+    }
+
+    function cumulateProtocolFee(uint256 amount) external checkAuthority {
+        cumulatedFee += amount;
     }
 }

@@ -85,6 +85,9 @@ contract TradePositionManager is
 
         // take fee from open notional value
         uint256 fee = (paidValueDelta * getFeeTier(user)) / 10000;
+        uint256 feeToProtocol = fee -
+            (fee * (10000 - PROTOCOL_FEE_PROPORTION)) /
+            10000;
 
         bool paidValueDeltaIsPos = isOpen ? !position.isLong : position.isLong;
 
@@ -129,9 +132,21 @@ contract TradePositionManager is
 
         (netPaidValue.value, netPaidValue.isPos) = MathUtil.add(
             netPaidValue.value,
-            paidValueDelta,
+            paidValueDeltaIsPos
+                ? paidValueDelta + feeToProtocol
+                : paidValueDelta - feeToProtocol,
             netPaidValue.isPos,
             paidValueDeltaIsPos
+        );
+
+        // cumulatve protocol fee
+        address vault = adminContract.getVault();
+        IVault(vault).cumulateProtocolFee(
+            MathUtil.convertDecimals(
+                feeToProtocol,
+                VALUE_DECIMAL,
+                collateralInfos[0].decimals
+            )
         );
     }
 
@@ -438,11 +453,10 @@ contract TradePositionManager is
                 paidValue.isPos
             );
             // decimal convert
-            CollateralInfo storage collateralInfo = collateralInfos[0];
             _value = MathUtil.convertDecimals(
                 _value,
                 VALUE_DECIMAL,
-                collateralInfo.decimals
+                collateralInfos[0].decimals
             );
         } else {
             // get collateral qty
