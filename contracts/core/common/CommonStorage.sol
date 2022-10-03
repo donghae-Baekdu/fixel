@@ -20,6 +20,7 @@ contract CommonStorage {
     uint8 public VALUE_DECIMAL = 18;
     uint8 public MAX_LEVERAGE;
     uint8 public DEFAULT_FEE_TIER; // bp
+    uint32 public PROTOCOL_FEE_PROPORTION = 3000; //bp
 
     //user -> collateralId -> position
     mapping(address => mapping(uint32 => Collateral)) public collaterals;
@@ -43,6 +44,11 @@ contract CommonStorage {
     function setDefaultFeeTier(uint8 feeTier) external {
         // TODO only owner
         DEFAULT_FEE_TIER = feeTier;
+    }
+
+    function setProtoclFeeProportion(uint8 feeTier) external {
+        // TODO only owner
+        PROTOCOL_FEE_PROPORTION = feeTier;
     }
 
     function setFeeTier(address user, uint8 feeTier) external {

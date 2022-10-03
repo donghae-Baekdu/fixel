@@ -189,7 +189,7 @@ contract TradePositionManager is
             uint256 IM,
             ,
             ValueWithSign memory willReceiveValue
-        ) = getEssentialFactors(user, true, true, false, true);
+        ) = getEssentialFactors(user, true);
 
         if (collateralId == 0) {
             ValueWithSign storage paidValue = userInfos[user].paidValue;
@@ -279,13 +279,7 @@ contract TradePositionManager is
         }
     }
 
-    function getEssentialFactors(
-        address user,
-        bool getNV,
-        bool getIM,
-        bool getMM,
-        bool getWRV
-    )
+    function getEssentialFactors(address user, bool getLeverageFactors)
         public
         view
         returns (
@@ -313,33 +307,24 @@ contract TradePositionManager is
                     PRICE_DECIMAL,
                     VALUE_DECIMAL
                 );
-                if (getNV) {
+                if (getLeverageFactors) {
                     _notionalValue += notionalValue;
-                }
-                // add IM
-                if (getIM) {
                     _IM +=
                         (notionalValue * market.initialMarginFraction) /
                         10000;
-                }
-                // add MM
-                if (getMM) {
+                } else {
                     _MM +=
                         (notionalValue * market.maintenanceMarginFraction) /
                         10000;
                 }
                 // add will receive value
-                if (getWRV) {
-                    (
-                        _willReceiveValue.value,
-                        _willReceiveValue.isPos
-                    ) = MathUtil.add(
+                (_willReceiveValue.value, _willReceiveValue.isPos) = MathUtil
+                    .add(
                         _willReceiveValue.value,
                         notionalValue,
                         _willReceiveValue.isPos,
                         position.isLong
                     );
-                }
             }
         }
     }
@@ -379,7 +364,7 @@ contract TradePositionManager is
             uint256 IM,
             ,
             ValueWithSign memory willReceiveValue
-        ) = getEssentialFactors(user, true, true, false, true);
+        ) = getEssentialFactors(user, true);
 
         uint256 collateralValue = getCollateralValue(user);
 
@@ -444,10 +429,7 @@ contract TradePositionManager is
             ValueWithSign storage paidValue = userInfos[user].paidValue;
             (, , , ValueWithSign memory willReceiveValue) = getEssentialFactors(
                 user,
-                false,
-                false,
-                false,
-                true
+                false
             );
             (_value, _isPos) = MathUtil.add(
                 willReceiveValue.value,
