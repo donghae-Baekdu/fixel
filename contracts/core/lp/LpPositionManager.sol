@@ -116,7 +116,7 @@ contract LpPositionManager is
         require(user == msg.sender, "User and Sender should be same");
 
         if (collateralId == 0) {
-            IUSD(adminContract.getStablecoin()).burnFrom(user, amount);
+            IUSD(adminContract.getStablecoin()).burn(user, amount);
         } else {
             address tokenAddress = collateralInfos[collateralId].tokenAddress;
             address vault = adminContract.getVault();
