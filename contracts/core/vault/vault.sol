@@ -55,4 +55,8 @@ contract Vault is IVault {
         underlyingAsset.transfer(msg.sender, redeemAmount);
         underlyingAsset.transfer(IAdmin(admin).getFeePot(), fee);
     }
+
+    function wrap() external {
+        // TODO wrap USDC to xUSD
+    }
 }

@@ -29,4 +29,9 @@ interface ILpPositionManager {
         returns (uint256 _collateralValue);
 
     function getLpPositionPrice() external view returns (uint256 _price);
+
+    function getBalance(address user, uint32 collateralId)
+        external
+        view
+        returns (uint256 _value, bool _isPos);
 }

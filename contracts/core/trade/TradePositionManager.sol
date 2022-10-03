@@ -437,6 +437,10 @@ contract TradePositionManager is
         );
     }
 
+    function convert() external {
+        // TODO convert USDC collateral to xUSD
+    }
+
     function liquidate(
         address user,
         uint32 marketId,
