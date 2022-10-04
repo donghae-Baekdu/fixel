@@ -2,19 +2,23 @@ pragma solidity ^0.8.9;
 
 import {IAdmin} from "../../interfaces/IAdmin.sol";
 import {IVault} from "../../interfaces/IVault.sol";
+import {IUSD} from "../../interfaces/IUSD.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IUSD} from "../../interfaces/IUSD.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
+
+import {MathUtil} from "../../libraries/MathUtil.sol";
 
 contract Vault is IVault {
     using SafeMath for uint256;
     uint redeemFee = 5; //bp
     address admin;
+    address USDC;
     uint256 cumulatedFee;
 
-    constructor(address admin_) {
+    constructor(address admin_, address USDC_) {
         admin = admin_;
+        USDC = USDC_;
     }
 
     modifier checkAuthority() {
@@ -34,27 +38,28 @@ contract Vault is IVault {
         IERC20(token).transfer(recipient, amount);
     }
 
-    function redeem(uint amount) external {
+    // Note. assume xUSD and USDC decimals are same
+    function redeem(uint burnAmount) external {
         IUSD stablecoin = IUSD(IAdmin(admin).getStablecoin());
-        IERC20 underlyingAsset = IERC20(stablecoin.underlyingAsset());
 
         require(
-            stablecoin.balanceOf(msg.sender) >= amount,
+            stablecoin.balanceOf(msg.sender) >= burnAmount,
             "Insufficient Sender Balance"
         );
 
+        uint256 redeemAmount = (burnAmount * (1e4 - 5)) / 1e4;
+
         require(
-            IERC20(underlyingAsset).balanceOf(address(this)) >= amount,
+            IERC20(USDC).balanceOf(address(this)) >= redeemAmount,
             "Insufficient Vault Balance"
         );
 
-        stablecoin.burn(msg.sender, amount);
+        IERC20(USDC).transfer(msg.sender, redeemAmount);
 
-        uint redeemAmount = (amount * (1e4 - 5)) / 1e4;
-        uint fee = amount - redeemAmount;
+        stablecoin.burn(msg.sender, burnAmount);
 
-        underlyingAsset.transfer(msg.sender, redeemAmount);
-        underlyingAsset.transfer(IAdmin(admin).getFeePot(), fee);
+        uint256 fee = burnAmount - redeemAmount;
+        cumulatedFee += fee;
     }
 
     function wrap() external {

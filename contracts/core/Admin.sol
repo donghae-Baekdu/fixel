@@ -59,15 +59,6 @@ contract Admin is Ownable, IAdmin {
         return vault;
     }
 
-    function setFeePot(address feePot_) external onlyOwner {
-        feePot = feePot_;
-        emit SetFeePot(feePot_);
-    }
-
-    function getFeePot() external view returns (address) {
-        return feePot;
-    }
-
     function setStablecoin(address stablecoin_) external onlyOwner {
         stablecoin = stablecoin_;
         emit SetStablecoin(stablecoin_);

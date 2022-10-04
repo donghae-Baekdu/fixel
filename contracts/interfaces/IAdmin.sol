@@ -30,10 +30,6 @@ interface IAdmin {
 
     function getVault() external view returns (address);
 
-    function setFeePot(address feePot_) external;
-
-    function getFeePot() external view returns (address);
-
     function setStablecoin(address _stablecoin) external;
 
     function getStablecoin() external view returns (address);

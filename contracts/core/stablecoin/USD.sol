@@ -6,7 +6,6 @@ import {IAdmin} from "../../interfaces/IAdmin.sol";
 
 contract USD is IUSD {
     address admin;
-    address public underlyingAsset;
 
     uint public totalSupply;
     mapping(address => uint) public balanceOf;
@@ -16,9 +15,8 @@ contract USD is IUSD {
 
     uint8 _decimals = 6;
 
-    constructor(address _admin, address _underlyingAsset) {
-        admin = _admin;
-        underlyingAsset = _underlyingAsset;
+    constructor(address admin_) {
+        admin = admin_;
     }
 
     modifier checkAuthority() {
