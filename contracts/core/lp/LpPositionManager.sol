@@ -262,7 +262,6 @@ contract LpPositionManager is
         uint32 collateralCount = userInfos[user].collateralCount;
 
         address priceOracle = adminContract.getPriceOracle();
-        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
 
         for (uint32 i = 0; i < collateralCount; i++) {
             uint32 collateralId = userCollateralList[user][i];
@@ -273,7 +272,9 @@ contract LpPositionManager is
                 ];
                 uint256 value = MathUtil.mul(
                     collateral.qty,
-                    prices[collateralId],
+                    IPriceOracle(priceOracle).getPriceFeed(
+                        collateralInfo.oracleId
+                    ),
                     collateralInfo.decimals,
                     PRICE_DECIMAL,
                     VALUE_DECIMAL

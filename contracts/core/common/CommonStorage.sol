@@ -11,7 +11,7 @@ contract CommonStorage {
     struct CollateralInfo {
         address tokenAddress;
         uint32 collateralId;
-        uint32 oracleKey;
+        uint32 oracleId;
         uint32 weight;
         uint8 decimals;
     }
@@ -63,7 +63,7 @@ contract CommonStorage {
     function listNewCollateral(
         address tokenAddress,
         uint32 collateralId,
-        uint32 oracleKey,
+        uint32 oracleId,
         uint32 weight,
         uint8 decimals
     ) external {
@@ -71,7 +71,7 @@ contract CommonStorage {
         collateralInfos[collateralId] = CollateralInfo(
             tokenAddress,
             collateralId,
-            oracleKey,
+            oracleId,
             weight,
             decimals
         );

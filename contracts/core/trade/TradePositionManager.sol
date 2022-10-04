@@ -70,15 +70,17 @@ contract TradePositionManager is
         uint256 qty,
         bool isOpen
     ) internal {
+        Market storage market = markets[marketId];
         address priceOracle = adminContract.getPriceOracle();
-        uint256 price = IPriceOracle(priceOracle).getPrice(marketId);
+
+        uint256 price = IPriceOracle(priceOracle).getPriceFeed(market.oracleId);
 
         ValueWithSign storage paidValue = userInfos[user].paidValue;
 
         uint256 paidValueDelta = MathUtil.mul(
             qty,
             price,
-            markets[marketId].decimals,
+            market.decimals,
             PRICE_DECIMAL,
             VALUE_DECIMAL
         );
@@ -111,8 +113,6 @@ contract TradePositionManager is
 
             checkMaxLeverage(user);
 
-            Market storage market = markets[marketId];
-
             if (position.isLong) {
                 market.longQty += qty;
             } else {
@@ -120,8 +120,6 @@ contract TradePositionManager is
             }
         } else {
             position.qty.value -= qty;
-
-            Market storage market = markets[marketId];
 
             if (position.isLong) {
                 market.longQty -= qty;
@@ -264,7 +262,6 @@ contract TradePositionManager is
         returns (uint256 _pnlValue, bool _pnlIsPos)
     {
         address priceOracle = adminContract.getPriceOracle();
-        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
         (_pnlValue, _pnlIsPos) = (netPaidValue.value, netPaidValue.isPos);
         for (uint32 i = 0; i < marketCount; i++) {
             uint32 marketId = marketList[i];
@@ -276,11 +273,9 @@ contract TradePositionManager is
                 ? market.longQty - market.shortQty
                 : market.shortQty - market.longQty;
 
-            uint256 price = prices[marketId];
-
             uint256 notionalValue = MathUtil.mul(
                 netPositionQty,
-                price,
+                IPriceOracle(priceOracle).getPriceFeed(market.oracleId),
                 market.decimals,
                 PRICE_DECIMAL,
                 VALUE_DECIMAL
@@ -307,17 +302,15 @@ contract TradePositionManager is
         uint32 positionCount = userInfos[user].positionCount;
 
         address priceOracle = adminContract.getPriceOracle();
-        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
 
         for (uint32 i = 0; i < positionCount; i++) {
             uint32 marketId = userPositionList[user][i];
             Position storage position = positions[user][marketId];
             if (position.isOpened) {
-                uint256 price = prices[marketId];
                 Market storage market = markets[marketId];
                 uint256 notionalValue = MathUtil.mul(
                     position.qty.value,
-                    price,
+                    IPriceOracle(priceOracle).getPriceFeed(market.oracleId),
                     market.decimals,
                     PRICE_DECIMAL,
                     VALUE_DECIMAL
@@ -352,7 +345,6 @@ contract TradePositionManager is
         uint32 collateralCount = userInfos[user].collateralCount;
 
         address priceOracle = adminContract.getPriceOracle();
-        uint256[] memory prices = IPriceOracle(priceOracle).getPrices();
 
         for (uint32 i = 0; i < collateralCount; i++) {
             uint32 collateralId = userCollateralList[user][i];
@@ -363,7 +355,9 @@ contract TradePositionManager is
                 ];
                 uint256 value = MathUtil.mul(
                     collateral.qty,
-                    prices[collateralId],
+                    IPriceOracle(priceOracle).getPriceFeed(
+                        collateralInfo.oracleId
+                    ),
                     collateralInfo.decimals,
                     PRICE_DECIMAL,
                     VALUE_DECIMAL

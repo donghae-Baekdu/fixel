@@ -15,7 +15,7 @@ interface Market {
 interface Collateral {
   tokenAddress: string;
   collateralId: string;
-  oracleKey: string;
+  oracleId: string;
   weight: string;
   decimals: string;
 }
@@ -42,7 +42,7 @@ const ETH_MARKET: Market = {
   decimals: '9'
 }
 
-const BTC_MARKET = {
+const BTC_MARKET: Market = {
   marketId: BTCUSD_MARKET_ID,
   oracleId: BTC_PRICE_ORACLE_ID,
   initialMarginFraction: '500',
@@ -50,12 +50,28 @@ const BTC_MARKET = {
   decimals: '9'
 }
 
-const XUSD_COLLATERAL = {
-  tokenAddress: string;
-  collateralId: string;
-  oracleKey: string;
-  weight: string;
-  decimals: string;
+const XUSD_COLLATERAL: Collateral = {
+  tokenAddress: "",
+  collateralId: "0",
+  oracleId: "0",
+  weight: "10000",
+  decimals: "6"
+}
+
+const WETH_COLLATERAL: Collateral = {
+  tokenAddress: WETH_ADDRESS,
+  collateralId: "1",
+  oracleId: ETH_PRICE_ORACLE_ID,
+  weight: "8000",
+  decimals: "6"
+}
+
+const WBTC_COLLATERAL: Collateral = {
+  tokenAddress: WBTC_ADDRESS,
+  collateralId: "2",
+  oracleId: "2",
+  weight: "8000",
+  decimals: "6"
 }
 
 describe("TradePositionManager", async function () {
@@ -108,7 +124,7 @@ describe("TradePositionManager", async function () {
     );
 
     const Vault = await hre.ethers.getContractFactory("Vault");
-    const VaultContract = await Vault.deploy(AdminContract.address);
+    const VaultContract = await Vault.deploy(AdminContract.address, USDC_ADDRESS);
     await VaultContract.deployed();
     const vaultAddress = TradePositionManagerContract.address;
     await AdminContract.setVault(vaultAddress);
